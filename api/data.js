@@ -91,10 +91,12 @@ async function fetchAllSegments(apiKey) {
 }
 
 async function findPlacedOrderMetricId(apiKey) {
-  // Descobre o metric_id de "Placed Order" dinamicamente (varia entre US e BR)
+  // Descobre o metric_id de "Placed Order" buscando TODAS as métricas e filtrando em JS.
+  // (filtro server-side estava dando erro silencioso em algumas contas)
   try {
-    const j = await klaviyoFetch(apiKey, "/metrics?fields[metric]=name&filter=equals(name,\"Placed Order\")");
-    return j.data && j.data[0] ? j.data[0].id : null;
+    const j = await klaviyoFetch(apiKey, "/metrics?fields[metric]=name");
+    const placed = (j.data || []).find(m => m.attributes && m.attributes.name === "Placed Order");
+    return placed ? placed.id : null;
   } catch (_) { return null; }
 }
 

@@ -14,12 +14,13 @@ function getApiKey(account) {
 
 async function findPlacedOrderMetricId(apiKey) {
   try {
-    const r = await fetch(KLAVIYO_BASE + "/metrics?fields[metric]=name&filter=equals(name,\"Placed Order\")", {
+    const r = await fetch(KLAVIYO_BASE + "/metrics?fields[metric]=name", {
       headers: { "Authorization": "Klaviyo-API-Key " + apiKey, "accept": "application/json", "revision": REVISION }
     });
     if (!r.ok) return null;
     const j = await r.json();
-    return j.data && j.data[0] ? j.data[0].id : null;
+    const placed = (j.data || []).find(m => m.attributes && m.attributes.name === "Placed Order");
+    return placed ? placed.id : null;
   } catch (_) { return null; }
 }
 
