@@ -481,6 +481,24 @@ async function renderDiagram(counts) {
   el.removeAttribute("data-processed");
   el.textContent = buildDiagramText(counts || {});
   await mermaid.run({ querySelector: "#diagram" });
+  // Attach click handlers diretamente nos nodes (Mermaid v11 click directives podem falhar)
+  const NODE_TO_CARD = {
+    optin: "card-entry", opensendEntry: "card-entry", metaAds: "card-entry", direct: "card-entry",
+    welcome: "card-welcome", opensendNode: "card-welcome",
+    loop: "card-loop", browseAbandon: "card-loop", abandonedCart: "card-loop", abandonedCheckout: "card-loop",
+    placed: "card-placed",
+    postPurchase: "card-postPurchase", nps: "card-postPurchase", loyalty: "card-postPurchase", referralProg: "card-postPurchase", replenish: "card-postPurchase",
+    reactivation: "card-reactivation", sunset: "card-reactivation", lapsing: "card-reactivation", exitNode: "card-reactivation"
+  };
+  document.querySelectorAll(".mermaid g.node").forEach(n => {
+    const id = n.id || "";
+    const m = id.match(/flowchart-([A-Za-z]+)-/);
+    if (!m) return;
+    const cardId = NODE_TO_CARD[m[1]];
+    if (!cardId) return;
+    n.style.cursor = "pointer";
+    n.onclick = (e) => { e.preventDefault(); e.stopPropagation(); window.scrollToCard(cardId); };
+  });
 }
 
 // ========== render: revenue/base/flows KPIs ==========
