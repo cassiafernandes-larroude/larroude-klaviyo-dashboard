@@ -114,7 +114,7 @@ export default async function handler(req) {
       status: 200,
       headers: {
         "content-type": "application/json",
-        "cache-control": (current || previous) ? "public, s-maxage=86400, stale-while-revalidate=3600" : "public, s-maxage=300"
+        "cache-control": (current || previous) ? "public, s-maxage=604800, stale-while-revalidate=86400" : "public, s-maxage=300"
       }
     });
   } catch (e) {

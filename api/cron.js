@@ -1,46 +1,59 @@
-// Vercel Cron — disparado uma vez por dia às 03:00 ET.
-// Função: aquecer o cache de /api/data, /api/performance e /api/segment-count
-// pra que o primeiro usuário do dia já encontre tudo pronto.
+// Vercel Cron — disparado 1x por semana (Domingo 3am ET).
+// Função: aquecer o cache de TODOS os endpoints pra que os usuários
+// nunca esperem dados frescos do Klaviyo.
 
 export const config = { runtime: "edge" };
 
-// IDs dos segmentos featured (mantidos em sync com api/data.js e index.html)
+// IDs dos segmentos featured (sempre warm)
 const FEATURED_SEGMENT_IDS = [
   "XF8f94", "VzX6n5", "TKgWFC", "VDLdYZ", "QQPern",
   "TDXDzA", "WGrCjj", "RaXvQd", "Sudqwh"
 ];
 
 export default async function handler(req) {
-  // Vercel Cron envia header de autorização. Em prod, validar com process.env.CRON_SECRET.
   const auth = req.headers.get("authorization");
   if (process.env.CRON_SECRET && auth !== "Bearer " + process.env.CRON_SECRET) {
     return new Response("Unauthorized", { status: 401 });
   }
 
   const baseUrl = "https://" + (req.headers.get("host") || "");
+
+  // 1. Bater /api/data primeiro (rápido, fornece a lista de flows e segments)
+  const dataRes = await fetch(baseUrl + "/api/data", { headers: { "cache-control": "no-cache" } });
+  let data = null;
+  try { data = await dataRes.json(); } catch (_) {}
+
+  const liveFlows = data && data.flows ? data.flows.filter(f => f.status === "live").map(f => f.id) : [];
+  const allSegments = data && data.allSegments ? data.allSegments.map(s => s.id) : [];
+
+  // 2. Combinar todas URLs de warmup (segments + featured + top live flows)
+  const segmentSet = new Set([...FEATURED_SEGMENT_IDS, ...allSegments]);
   const targets = [
     baseUrl + "/api/data",
-    baseUrl + "/api/performance?days=7",
-    baseUrl + "/api/performance?days=14",
-    baseUrl + "/api/performance?days=28",
-    // 9 segmentos individuais — cada um aquece seu próprio cache de 24h
-    ...FEATURED_SEGMENT_IDS.map(id => baseUrl + "/api/segment-count?id=" + id)
+    ...Array.from(segmentSet).map(id => baseUrl + "/api/segment-count?id=" + id),
+    ...liveFlows.flatMap(id => [
+      baseUrl + "/api/flow-perf?id=" + id + "&days=7",
+      baseUrl + "/api/flow-perf?id=" + id + "&days=14",
+      baseUrl + "/api/flow-perf?id=" + id + "&days=28"
+    ])
   ];
 
-  // Hit em paralelo (são endpoints independentes, sem race entre si)
-  const results = await Promise.all(targets.map(async (url) => {
-    try {
-      const t0 = Date.now();
-      const res = await fetch(url, { headers: { "cache-control": "no-cache" } });
-      return { url, status: res.status, ms: Date.now() - t0 };
-    } catch (e) {
-      return { url, error: e.message };
-    }
-  }));
+  // 3. Disparar TODAS em paralelo (não espera completar — cada uma cacheia individualmente)
+  const fired = targets.map(url =>
+    fetch(url, { headers: { "cache-control": "no-cache" } }).catch(() => null)
+  );
+
+  // Espera no máximo 20s pra retornar (cron tem 25s no Hobby)
+  await Promise.race([
+    Promise.all(fired),
+    new Promise(r => setTimeout(r, 20000))
+  ]);
 
   return new Response(JSON.stringify({
     triggeredAt: new Date().toISOString(),
-    results
+    targetCount: targets.length,
+    liveFlowCount: liveFlows.length,
+    segmentCount: segmentSet.size
   }), {
     status: 200,
     headers: { "content-type": "application/json" }

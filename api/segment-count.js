@@ -93,7 +93,7 @@ export default async function handler(req) {
       headers: {
         "content-type": "application/json",
         "cache-control": count !== null
-          ? "public, s-maxage=86400, stale-while-revalidate=3600"
+          ? "public, s-maxage=604800, stale-while-revalidate=86400"
           : "public, s-maxage=300"
       }
     });
