@@ -93,7 +93,7 @@ async function fetchAllSegments(apiKey) {
 async function findPlacedOrderMetricId(apiKey) {
   // Descobre o metric_id de "Placed Order" dinamicamente (varia entre US e BR)
   try {
-    const j = await klaviyoFetch(apiKey, "/metrics?fields[metric]=name&filter=equals(name,\"Placed Order\")&page[size]=10");
+    const j = await klaviyoFetch(apiKey, "/metrics?fields[metric]=name&filter=equals(name,\"Placed Order\")");
     return j.data && j.data[0] ? j.data[0].id : null;
   } catch (_) { return null; }
 }

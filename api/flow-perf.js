@@ -14,7 +14,7 @@ function getApiKey(account) {
 
 async function findPlacedOrderMetricId(apiKey) {
   try {
-    const r = await fetch(KLAVIYO_BASE + "/metrics?fields[metric]=name&filter=equals(name,\"Placed Order\")&page[size]=10", {
+    const r = await fetch(KLAVIYO_BASE + "/metrics?fields[metric]=name&filter=equals(name,\"Placed Order\")", {
       headers: { "Authorization": "Klaviyo-API-Key " + apiKey, "accept": "application/json", "revision": REVISION }
     });
     if (!r.ok) return null;
