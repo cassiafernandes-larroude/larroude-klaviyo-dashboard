@@ -1,18 +1,17 @@
 // Vercel Edge Function — busca dados do Klaviyo e retorna JSON consolidado.
+// Inclui LTV windows: 12M, 6M, 3M (revenue/orders/uniques) — frontend calcula forecast 3M.
 // NÃO inclui mais profile_count dos segmentos featured — esses são buscados
-// individualmente pelo frontend via /api/segment-count?id=XXX (cada chamada
-// tem seu próprio orçamento de 25s, sem competir com outras).
-// Cache de 24h via Cache-Control. Primeiro request do dia paga ~10s; os outros instantâneos.
+// individualmente pelo frontend via /api/segment-count?id=XXX.
+// Cache de 24h via Cache-Control.
 //
-// Env var necessária: KLAVIYO_API_KEY (Private API Key com escopos read em flows, segments, metrics, accounts, events)
+// Env var necessária: KLAVIYO_API_KEY
 
 export const config = { runtime: "edge" };
 
 const KLAVIYO_BASE = "https://a.klaviyo.com/api";
 const REVISION = "2024-10-15";
-const PLACED_ORDER_METRIC_ID = "RWb2qv"; // Placed Order — confirme no seu Klaviyo
+const PLACED_ORDER_METRIC_ID = "RWb2qv";
 
-// Segmentos featured (com descrição manual). O profile_count vem via /api/segment-count
 const FEATURED_SEGMENTS = [
   { id: "XF8f94", name: "ENGAGED L30D", health: "good", desc: "Abriu/clicou/comprou nos últimos 30 dias · com consentimento de email." },
   { id: "VzX6n5", name: "ENGAGED L60D", health: "good", desc: "Engajou em qualquer canal nos últimos 60 dias · audiência principal de campanhas." },
@@ -96,10 +95,10 @@ async function fetchAllSegments() {
   return all;
 }
 
-async function fetchPlacedOrderL3M() {
-  // Últimos 3 meses
+async function fetchPlacedOrderWindow(days) {
+  // Aggregates Placed Order over last N days. Returns { revenue, orders, uniqueBuyerMonths, days }
   const end = new Date();
-  const start = new Date(end.getTime() - 90 * 86400000);
+  const start = new Date(end.getTime() - days * 86400000);
   const body = {
     data: {
       type: "metric-aggregate",
@@ -122,29 +121,53 @@ async function fetchPlacedOrderL3M() {
     const m = j.data && j.data.attributes && j.data.attributes.data && j.data.attributes.data[0] && j.data.attributes.data[0].measurements;
     if (!m) return null;
     const sum = arr => (arr || []).reduce((a, b) => a + (b || 0), 0);
-    const totalRevenue = sum(m.sum_value);
-    const totalOrders = sum(m.count);
+    const revenue = sum(m.sum_value);
+    const orders = sum(m.count);
+    const uniqueBuyerMonths = sum(m.unique);
     return {
-      revenue: totalRevenue,
-      orders: totalOrders,
-      aov: totalOrders > 0 ? totalRevenue / totalOrders : 0,
-      uniqueBuyerMonths: sum(m.unique)
+      days,
+      revenue,
+      orders,
+      uniqueBuyerMonths,
+      aov: orders > 0 ? revenue / orders : 0,
+      ltv: uniqueBuyerMonths > 0 ? revenue / uniqueBuyerMonths : 0,
+      monthlyRevenue: m.sum_value || [],
+      monthlyOrders: m.count || [],
+      monthlyUniques: m.unique || []
     };
   } catch (e) {
-    console.warn("metric_aggregate failed:", e.message);
+    console.warn("metric_aggregate failed for " + days + "d:", e.message);
     return null;
   }
 }
 
 export default async function handler(req) {
   try {
-    // Sem segments counts aqui — frontend busca separado via /api/segment-count
-    const [account, flows, allSegments, revenue] = await Promise.all([
+    // Múltiplas janelas de revenue + base info em paralelo
+    const [account, flows, allSegments, rev3M, rev6M, rev12M] = await Promise.all([
       fetchAccount(),
       fetchAllFlows(),
       fetchAllSegments(),
-      fetchPlacedOrderL3M()
+      fetchPlacedOrderWindow(90),
+      fetchPlacedOrderWindow(180),
+      fetchPlacedOrderWindow(365)
     ]);
+
+    // Forecast 3M = média mensal trailing 12M × 3
+    let forecast3M = null;
+    if (rev12M && rev12M.uniqueBuyerMonths > 0) {
+      const avgMonthlyRevenue = rev12M.revenue / 12;
+      const avgMonthlyUniques = rev12M.uniqueBuyerMonths / 12;
+      const projectedRevenue = avgMonthlyRevenue * 3;
+      const projectedUniques = avgMonthlyUniques * 3;
+      forecast3M = {
+        days: 90,
+        revenue: projectedRevenue,
+        uniqueBuyerMonths: projectedUniques,
+        ltv: projectedUniques > 0 ? projectedRevenue / projectedUniques : 0,
+        method: "trailing_12m_average × 3"
+      };
+    }
 
     const data = {
       fetchedAt: new Date().toISOString(),
@@ -152,7 +175,13 @@ export default async function handler(req) {
       flows,
       allSegments,
       featuredSegments: FEATURED_SEGMENTS,
-      revenue
+      revenue: rev3M, // backward compat: revenue = 3 meses
+      ltvWindows: {
+        l3m: rev3M,
+        l6m: rev6M,
+        l12m: rev12M,
+        forecast3m: forecast3M
+      }
     };
 
     return new Response(JSON.stringify(data), {
