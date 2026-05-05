@@ -36,6 +36,13 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Ar
 .section-num { font-size: 11px; font-weight: 700; color: #d44a8a; letter-spacing: 0.12em; text-transform: uppercase; }
 .mermaid { display: flex; justify-content: center; padding: 8px 0 0 0; }
 .mermaid svg { max-width: 100%; height: auto !important; }
+.mermaid .node { cursor: pointer; }
+.mermaid .node:hover rect, .mermaid .node:hover polygon, .mermaid .node:hover circle { stroke-width: 3px !important; filter: brightness(1.05); }
+@keyframes pulseHighlight { 0%, 100% { box-shadow: 0 0 0 0 rgba(212,74,138,0); } 50% { box-shadow: 0 0 0 8px rgba(212,74,138,0.3); } }
+.highlight-pulse { animation: pulseHighlight 1.6s ease-in-out; }
+.aud-load-btn { font-size: 11px; color: #d44a8a; background: none; border: 1px solid #d44a8a; border-radius: 4px; padding: 2px 8px; cursor: pointer; }
+.aud-load-btn:hover { background: #fce5ef; }
+.aud-load-btn:disabled { opacity: 0.5; cursor: wait; }
 .legend-row { display: flex; flex-wrap: wrap; gap: 16px; justify-content: center; margin-top: 16px; padding-top: 12px; border-top: 1px solid #f0ece5; font-size: 11px; color: #4a4239; }
 .legend-item { display: inline-flex; align-items: center; gap: 6px; }
 .legend-swatch { width: 14px; height: 14px; border-radius: 3px; }
@@ -162,6 +169,16 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Ar
       <div class="kpi"><div class="kpi-label">Orders L3M</div><div class="kpi-value skeleton">—</div></div>
       <div class="kpi"><div class="kpi-label">AOV</div><div class="kpi-value skeleton">—</div></div>
       <div class="kpi"><div class="kpi-label">Revenue / Repeat Buyer</div><div class="kpi-value skeleton">—</div></div>
+    </div>
+  </div>
+
+  <div class="kpi-section">
+    <div class="kpi-section-label">📈 LTV · Janelas de revenue / unique buyers (cohort)</div>
+    <div class="kpi-grid" id="kpis-ltv">
+      <div class="kpi"><div class="kpi-label">LTV últimos 3 meses</div><div class="kpi-value skeleton">—</div><div class="kpi-sub" id="ltv-3m-sub">—</div></div>
+      <div class="kpi"><div class="kpi-label">LTV últimos 6 meses</div><div class="kpi-value skeleton">—</div><div class="kpi-sub" id="ltv-6m-sub">—</div></div>
+      <div class="kpi"><div class="kpi-label">LTV últimos 12 meses</div><div class="kpi-value skeleton">—</div><div class="kpi-sub" id="ltv-12m-sub">—</div></div>
+      <div class="kpi"><div class="kpi-label">Forecast LTV próximos 3M</div><div class="kpi-value skeleton">—</div><div class="kpi-sub" id="ltv-fc-sub">trailing 12M ÷ 12 × 3</div></div>
     </div>
   </div>
 
@@ -360,10 +377,19 @@ function calcDelta(c, p) { if (p == null || p === 0) return null; return ((c - p
 
 // ========== Mermaid ==========
 mermaid.initialize({
-  startOnLoad: false, securityLevel: "strict", theme: "base",
+  startOnLoad: false, securityLevel: "loose", theme: "base",
   themeVariables: { primaryColor: "#fce5ef", primaryBorderColor: "#d44a8a", primaryTextColor: "#1a1a1a", lineColor: "#a6896d", fontSize: "15px" },
   flowchart: { curve: "basis", padding: 20, useMaxWidth: true }
 });
+
+// Click handler global — exposto para callbacks dos nodes do Mermaid
+window.scrollToCard = function(cardId) {
+  const el = document.getElementById(cardId);
+  if (!el) return;
+  el.scrollIntoView({ behavior: "smooth", block: "start" });
+  el.classList.add("highlight-pulse");
+  setTimeout(() => el.classList.remove("highlight-pulse"), 1600);
+};
 
 function buildDiagramText(counts) {
   const c = id => { const v = counts[id]; return typeof v === "number" ? "<br/>~" + Number(v).toLocaleString("pt-BR") : ""; };
@@ -419,15 +445,35 @@ function buildDiagramText(counts) {
     reactivation -->|engajou| loop
     reactivation -->|sem resposta| sunset
     sunset --> exitNode(["Saiu da base${c('QQPern')}"])
-    classDef has fill:#fce5ef,stroke:#d44a8a,stroke-width:1.5px,color:#1a1a1a
-    classDef partial fill:#fff7e0,stroke:#c89b3a,stroke-width:1.5px,color:#1a1a1a,stroke-dasharray: 4 3
-    classDef gap fill:#fce8e8,stroke:#c86060,stroke-width:1.5px,color:#1a1a1a,stroke-dasharray: 4 3
-    classDef draft fill:#f4eafc,stroke:#a06fc8,stroke-width:1.5px,color:#1a1a1a
+    classDef has fill:#fce5ef,stroke:#d44a8a,stroke-width:1.5px,color:#1a1a1a,cursor:pointer
+    classDef partial fill:#fff7e0,stroke:#c89b3a,stroke-width:1.5px,color:#1a1a1a,stroke-dasharray: 4 3,cursor:pointer
+    classDef gap fill:#fce8e8,stroke:#c86060,stroke-width:1.5px,color:#1a1a1a,stroke-dasharray: 4 3,cursor:pointer
+    classDef draft fill:#f4eafc,stroke:#a06fc8,stroke-width:1.5px,color:#1a1a1a,cursor:pointer
     style S1 fill:#faf6ee,stroke:#d6cdb8
     style S2 fill:#faf6ee,stroke:#d6cdb8
     style S3 fill:#faf6ee,stroke:#d6cdb8
     style S5 fill:#faf6ee,stroke:#d6cdb8
-    style S6 fill:#faf6ee,stroke:#d6cdb8`;
+    style S6 fill:#faf6ee,stroke:#d6cdb8
+    click optin call scrollToCard("card-entry") "Ir para Entrada"
+    click opensendEntry call scrollToCard("card-entry") "Ir para Entrada"
+    click metaAds call scrollToCard("card-entry") "Ir para Entrada"
+    click direct call scrollToCard("card-entry") "Ir para Entrada"
+    click welcome call scrollToCard("card-welcome") "Ir para Welcome"
+    click opensendNode call scrollToCard("card-welcome") "Ir para Welcome"
+    click loop call scrollToCard("card-loop") "Ir para Loop"
+    click browseAbandon call scrollToCard("card-loop") "Ir para Loop"
+    click abandonedCart call scrollToCard("card-loop") "Ir para Loop"
+    click abandonedCheckout call scrollToCard("card-loop") "Ir para Loop"
+    click placed call scrollToCard("card-placed") "Ir para Placed Order"
+    click postPurchase call scrollToCard("card-postPurchase") "Ir para Pós-compra"
+    click nps call scrollToCard("card-postPurchase") "Ir para Pós-compra"
+    click loyalty call scrollToCard("card-postPurchase") "Ir para Pós-compra"
+    click referralProg call scrollToCard("card-postPurchase") "Ir para Pós-compra"
+    click replenish call scrollToCard("card-postPurchase") "Ir para Pós-compra"
+    click reactivation call scrollToCard("card-reactivation") "Ir para Reativação"
+    click sunset call scrollToCard("card-reactivation") "Ir para Reativação"
+    click lapsing call scrollToCard("card-reactivation") "Ir para Reativação"
+    click exitNode call scrollToCard("card-reactivation") "Ir para Reativação"`;
 }
 
 async function renderDiagram(counts) {
@@ -449,6 +495,39 @@ function renderRevenueKpis() {
   cells[1].textContent = fmtNum(r.orders); cells[1].classList.remove("skeleton");
   cells[2].textContent = fmtCurrency(aov); cells[2].classList.remove("skeleton");
   cells[3].textContent = revPerRepeat ? fmtCurrency(revPerRepeat) : "—"; cells[3].classList.remove("skeleton");
+}
+
+function renderLtvKpis() {
+  const lw = appData.ltvWindows;
+  if (!lw) return;
+  const cells = document.querySelectorAll("#kpis-ltv .kpi-value");
+  const setKpi = (idx, win, subId) => {
+    if (!win) {
+      cells[idx].textContent = "—";
+      cells[idx].classList.remove("skeleton");
+      return;
+    }
+    cells[idx].textContent = fmtCurrency(win.ltv || 0);
+    cells[idx].classList.remove("skeleton");
+    const sub = document.getElementById(subId);
+    if (sub) {
+      const rev = fmtCurrency(win.revenue || 0);
+      const buyers = fmtNum(win.uniqueBuyerMonths || 0);
+      sub.textContent = rev + " ÷ " + buyers + " unique buyer-months";
+    }
+  };
+  setKpi(0, lw.l3m, "ltv-3m-sub");
+  setKpi(1, lw.l6m, "ltv-6m-sub");
+  setKpi(2, lw.l12m, "ltv-12m-sub");
+  if (lw.forecast3m) {
+    cells[3].textContent = fmtCurrency(lw.forecast3m.ltv || 0);
+    cells[3].classList.remove("skeleton");
+    const sub = document.getElementById("ltv-fc-sub");
+    if (sub) sub.textContent = "≈ " + fmtCurrency(lw.forecast3m.revenue) + " ÷ " + fmtNum(lw.forecast3m.uniqueBuyerMonths) + " · trailing 12M ÷ 12 × 3";
+  } else {
+    cells[3].textContent = "—";
+    cells[3].classList.remove("skeleton");
+  }
 }
 
 function renderBaseKpis() {
@@ -535,7 +614,9 @@ function renderAudiences() {
   document.getElementById("aud-tbody").innerHTML = filtered.length === 0 ? '<tr><td colspan="5" class="empty">Sem resultados</td></tr>' : filtered.map(s => {
     const featured = (appData.featuredSegments || []).find(f => f.id === s.id);
     const count = (appData.keySegmentCounts || {})[s.id];
-    const countTxt = typeof count === "number" ? fmtNum(count) : (s.featured ? "—" : '<span class="skeleton">não carregado</span>');
+    const countTxt = typeof count === "number"
+      ? fmtNum(count)
+      : '<button class="aud-load-btn" onclick="loadOneSegmentCount(\'' + s.id + '\', this)">Carregar</button>';
     return '<tr><td><strong>' + escapeHtml(s.name) + '</strong>' + (s.featured ? '<span class="featured-tag">Featured</span>' : '') + (featured ? '<div class="seg-desc">' + featured.desc + '</div>' : '') + '</td><td><span class="cat-pill cat-' + s.category + '">' + CAT_LABELS[s.category] + '</span></td><td class="num">' + countTxt + '</td><td><span style="font-size:11px;color:#8a8275">' + fmtDate(s.updated) + '</span></td><td><a href="https://www.klaviyo.com/lists/' + encodeURIComponent(s.id) + '" target="_blank" rel="noopener" style="color:#d44a8a;font-size:11px">Abrir →</a></td></tr>';
   }).join("");
 
@@ -672,88 +753,4 @@ function renderOpportunities() {
   const opps = [
     { p: "high", t: "Ativar Winback Free Gift (hoje em manual)", d: 'BCO - Winback Free Gift Standard existe em status manual. Ativar como flow live com gatilho automático.', i: typeof c("VDLdYZ") === "number" ? "Audiência: <strong>" + fmtNum(c("VDLdYZ")) + "</strong> Lapsed. Reativação a 5% = ~" + fmtNum(Math.round(c("VDLdYZ") * 0.05)) + "." : "Audiência: Lapsed Customers." },
     { p: "high", t: "Ativar Sunset Flow (hoje em draft)", d: "Last chance antes de supressão. Protege deliverability.", i: typeof c("QQPern") === "number" ? "Audiência: <strong>" + fmtNum(c("QQPern")) + "</strong> Unengaged." : "" },
-    { p: "high", t: "Implementar RFM Category Change (Loyalty / VIP)", d: "Existe segmento VIP, mas sem flow detectando mudanças de tier.", i: typeof c("WGrCjj") === "number" ? "Tier máximo: <strong>" + fmtNum(c("WGrCjj")) + "</strong> VIPs." : "" },
-    { p: "med", t: "Criar flow Meta Ads Lead Gen", d: "Integração Meta Lead Ad ativa. Sem flow específico, leads caem no Welcome geral." },
-    { p: "med", t: "Criar Lapsing Alert 30D", d: "Alerta intermediário antes de virar Lapsed (60-90D)." },
-    { p: "med", t: "Ativar Predictive Next Purchase + Anniversary", d: "Drafts existentes — replenishment é o melhor lever pra repurchase orgânica." },
-    { p: "med", t: "Ativar NPS / Survey nurture", d: "Drafts no Klaviyo. Coleta sistemática de NPS habilita campanhas com social proof." },
-    { p: "low", t: "Programa de Referência", d: "Eventos Okendo Referral existem mas sem flow Klaviyo orquestrando." }
-  ];
-  document.getElementById("opp-list").innerHTML = opps.map(o => '<div class="opp-item priority-' + o.p + '"><div class="opp-priority priority-' + o.p + '">' + (o.p === "high" ? "Alta" : o.p === "med" ? "Média" : "Baixa") + '</div><div><div style="font-weight:700;font-size:14px">' + escapeHtml(o.t) + '</div><div style="font-size:12px;color:#4a4239;margin-top:3px">' + o.d + '</div></div><div class="opp-impact"><div style="font-weight:700;font-size:9px;text-transform:uppercase;color:#6b6256;margin-bottom:4px">Impacto / audiência</div>' + (o.i || "") + '</div></div>').join("");
-}
-
-// ========== TABS ==========
-function switchTab(name) {
-  document.querySelectorAll(".tab").forEach(b => b.classList.toggle("active", b.dataset.tab === name));
-  document.querySelectorAll(".tab-content").forEach(c => c.classList.toggle("active", c.dataset.tabContent === name));
-  if (name === "performance" && !performanceCache[currentPeriod]) loadPerformance(currentPeriod);
-  if (name === "audiences") renderAudiences();
-  if (name === "conflicts") renderConflicts();
-  if (name === "opportunities") renderOpportunities();
-}
-document.querySelectorAll(".tab").forEach(b => b.addEventListener("click", () => switchTab(b.dataset.tab)));
-document.querySelectorAll(".period-btn").forEach(b => b.addEventListener("click", () => {
-  currentPeriod = parseInt(b.dataset.period, 10);
-  document.querySelectorAll(".period-btn").forEach(x => x.classList.toggle("active", x === b));
-  loadPerformance(currentPeriod);
-}));
-document.getElementById("aud-search").addEventListener("input", renderAudiences);
-document.getElementById("aud-category-filter").addEventListener("change", renderAudiences);
-
-// ========== INIT ==========
-async function fetchSegmentCount(id) {
-  // Cada segmento tem seu próprio orçamento de 25s na Edge Function
-  try {
-    const r = await fetch("/api/segment-count?id=" + encodeURIComponent(id));
-    if (!r.ok) return null;
-    const j = await r.json();
-    return typeof j.count === "number" ? j.count : null;
-  } catch (e) {
-    console.warn("segment-count failed for", id, e.message);
-    return null;
-  }
-}
-
-async function loadKeySegmentCounts() {
-  // Dispara as 9 chamadas em paralelo. Cada uma tem seu próprio Edge function (25s budget).
-  const featured = appData.featuredSegments || [];
-  const ids = featured.map(s => s.id);
-  appData.keySegmentCounts = appData.keySegmentCounts || {};
-
-  // Fire all in parallel — cards/KPIs atualizam progressivamente, diagram só no final
-  await Promise.all(ids.map(async (id) => {
-    const count = await fetchSegmentCount(id);
-    appData.keySegmentCounts[id] = count;
-    // Re-render KPIs e cards (não-mermaid) à medida que responde
-    try { renderBaseKpis(); } catch (_) {}
-    try { renderAllSections(); } catch (_) {}
-  }));
-
-  // Re-render do mermaid uma única vez no final pra evitar concorrência de renders
-  try { await renderDiagram(appData.keySegmentCounts); } catch (_) {}
-}
-
-async function init() {
-  try {
-    const res = await fetch("/api/data");
-    if (!res.ok) throw new Error("HTTP " + res.status);
-    appData = await res.json();
-    if (appData.error) throw new Error(appData.error);
-    flowsById = {};
-    (appData.flows || []).forEach(f => flowsById[f.id] = f);
-    appData.keySegmentCounts = appData.keySegmentCounts || {}; // start empty
-    renderRevenueKpis();
-    renderBaseKpis();
-    renderFlowKpis();
-    await renderDiagram(appData.keySegmentCounts);
-    renderAllSections();
-    // Disparar segment counts em paralelo (não bloqueia render inicial)
-    loadKeySegmentCounts();
-  } catch (e) {
-    document.getElementById("error-banner").innerHTML = '<div class="error-banner">⚠️ Erro ao carregar dados: ' + escapeHtml(e.message) + '<br><small>Verifique se KLAVIYO_API_KEY está configurada nas env vars do Vercel.</small></div>';
-  }
-}
-init();
-</script>
-</body>
-</html>
+   
