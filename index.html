@@ -713,16 +713,34 @@ function diagnose(curr, prev) {
 function renderPerformance(days) {
   const data = performanceCache[days];
   if (!data) return;
-  const rows = Object.values(data.current || {}).filter(f => f.recipients > 0).sort((a, b) => b.revenue - a.revenue);
-  if (rows.length === 0) {
-    document.getElementById("perf-tbody").innerHTML = '<tr><td colspan="7" class="empty" style="text-align:center">Sem dados de envio</td></tr>';
+  // Mostrar TODOS os live flows, mesmo os que ainda não têm dados
+  const liveFlows = (appData.flows || []).filter(f => f.status === "live");
+  if (liveFlows.length === 0) {
+    document.getElementById("perf-tbody").innerHTML = '<tr><td colspan="7" class="empty" style="text-align:center">Nenhum flow live.</td></tr>';
     return;
   }
-  document.getElementById("perf-tbody").innerHTML = rows.map(f => {
-    const p = (data.previous || {})[f.flow_id] || {};
+  // Sort: flows com dados (revenue > 0) primeiro, depois por nome
+  const enriched = liveFlows.map(flow => {
+    const f = (data.current || {})[flow.id];
+    return { id: flow.id, name: flow.name, status: flow.status, data: f };
+  });
+  enriched.sort((a, b) => {
+    const ar = (a.data && a.data.revenue) || 0;
+    const br = (b.data && b.data.revenue) || 0;
+    if (ar !== br) return br - ar;
+    return (a.name || "").localeCompare(b.name || "");
+  });
+
+  document.getElementById("perf-tbody").innerHTML = enriched.map(item => {
+    const f = item.data;
+    if (!f) {
+      // Flow ainda não tem dados — mostra placeholder
+      return '<tr><td><a href="https://www.klaviyo.com/flow/' + encodeURIComponent(item.id) + '/edit" target="_blank" rel="noopener" style="color:#1a1a1a;text-decoration:none;font-weight:500">' + escapeHtml(item.name) + '</a><div style="font-size:11px;color:#8a8275;margin-top:4px;font-style:italic">aguardando cache...</div></td><td>' + statusPill(item.status) + '</td><td class="num skeleton">—</td><td class="num skeleton">—</td><td class="num skeleton">—</td><td class="num skeleton">—</td><td class="num skeleton">—</td></tr>';
+    }
+    const p = (data.previous || {})[item.id] || {};
     const d = diagnose(f, p);
     const diagHtml = '<div class="flow-diag diag-' + d.level + '"><ul>' + d.tips.map(t => '<li>' + t + '</li>').join("") + '</ul></div>';
-    return '<tr><td><a href="https://www.klaviyo.com/flow/' + encodeURIComponent(f.flow_id) + '/edit" target="_blank" rel="noopener" style="color:#1a1a1a;text-decoration:none;font-weight:500">' + escapeHtml(f.flow_name) + '</a>' + diagHtml + '</td><td>' + statusPill(f.status) + '</td><td class="num">' + fmtNum(f.recipients) + deltaSpan(calcDelta(f.recipients, p.recipients)) + '</td><td class="num">' + fmtPct(f.openRate, 1) + deltaSpan(calcDelta(f.openRate, p.openRate)) + '</td><td class="num">' + fmtPct(f.clickRate, 2) + deltaSpan(calcDelta(f.clickRate, p.clickRate)) + '</td><td class="num">' + fmtPct(f.conversionRate, 2) + deltaSpan(calcDelta(f.conversionRate, p.conversionRate)) + '</td><td class="num">' + fmtCurrency(f.revenue) + deltaSpan(calcDelta(f.revenue, p.revenue)) + '</td></tr>';
+    return '<tr><td><a href="https://www.klaviyo.com/flow/' + encodeURIComponent(item.id) + '/edit" target="_blank" rel="noopener" style="color:#1a1a1a;text-decoration:none;font-weight:500">' + escapeHtml(item.name) + '</a>' + diagHtml + '</td><td>' + statusPill(item.status) + '</td><td class="num">' + fmtNum(f.recipients) + deltaSpan(calcDelta(f.recipients, p.recipients)) + '</td><td class="num">' + fmtPct(f.openRate, 1) + deltaSpan(calcDelta(f.openRate, p.openRate)) + '</td><td class="num">' + fmtPct(f.clickRate, 2) + deltaSpan(calcDelta(f.clickRate, p.clickRate)) + '</td><td class="num">' + fmtPct(f.conversionRate, 2) + deltaSpan(calcDelta(f.conversionRate, p.conversionRate)) + '</td><td class="num">' + fmtCurrency(f.revenue) + deltaSpan(calcDelta(f.revenue, p.revenue)) + '</td></tr>';
   }).join("");
 }
 
