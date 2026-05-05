@@ -1,0 +1,724 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Larroudé · Jornada do perfil — Klaviyo</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.10.0/dist/mermaid.min.js"></script>
+<style>
+:root { color-scheme: light; }
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; background: #f5f3ee; color: #1a1a1a; font-size: 14px; line-height: 1.5; }
+.container { max-width: 1320px; margin: 0 auto; padding: 28px 28px 64px; }
+.page-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; flex-wrap: wrap; margin-bottom: 16px; }
+.page-title { margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.01em; }
+.page-subtitle { margin-top: 6px; font-size: 13px; color: #6b6256; }
+.page-subtitle strong { color: #1a1a1a; font-weight: 600; }
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid #ddd5c7; margin-bottom: 18px; padding-left: 2px; flex-wrap: wrap; }
+.tab { background: none; border: none; padding: 10px 16px; font: inherit; font-size: 13px; font-weight: 500; color: #6b6256; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: color 0.15s, border-color 0.15s; }
+.tab:hover { color: #1a1a1a; }
+.tab.active { color: #d44a8a; border-bottom-color: #d44a8a; font-weight: 600; }
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+.kpi-section { margin-bottom: 18px; }
+.kpi-section-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #6b6256; margin-bottom: 8px; padding-left: 2px; }
+.kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(155px, 1fr)); gap: 10px; }
+.kpi { background: #fff; border: 1px solid #ece7df; border-radius: 12px; padding: 16px 18px; }
+.kpi .kpi-label { font-size: 10px; color: #6b6256; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; }
+.kpi .kpi-value { font-size: 24px; font-weight: 700; line-height: 1.1; margin-top: 6px; color: #1a1a1a; font-variant-numeric: tabular-nums; }
+.kpi .kpi-sub { font-size: 11px; color: #8a8275; margin-top: 4px; line-height: 1.35; }
+.card { background: #fff; border: 1px solid #ece7df; border-radius: 14px; padding: 24px 26px; margin-bottom: 14px; }
+.card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 4px; }
+.card-title { margin: 0; font-size: 18px; font-weight: 700; letter-spacing: -0.01em; }
+.card-meta { font-size: 12px; color: #6b6256; }
+.card-desc { font-size: 13px; color: #4a4239; margin-top: 6px; }
+.section-num { font-size: 11px; font-weight: 700; color: #d44a8a; letter-spacing: 0.12em; text-transform: uppercase; }
+.mermaid { display: flex; justify-content: center; padding: 8px 0 0 0; }
+.mermaid svg { max-width: 100%; height: auto !important; }
+.legend-row { display: flex; flex-wrap: wrap; gap: 16px; justify-content: center; margin-top: 16px; padding-top: 12px; border-top: 1px solid #f0ece5; font-size: 11px; color: #4a4239; }
+.legend-item { display: inline-flex; align-items: center; gap: 6px; }
+.legend-swatch { width: 14px; height: 14px; border-radius: 3px; }
+.legend-swatch.has { background: #fce5ef; border: 1.5px solid #d44a8a; }
+.legend-swatch.partial { background: #fff7e0; border: 1.5px dashed #c89b3a; }
+.legend-swatch.gap { background: #fce8e8; border: 1.5px dashed #c86060; }
+.legend-swatch.draft { background: #f4eafc; border: 1.5px solid #a06fc8; }
+.subgroup { margin-top: 18px; }
+.subgroup-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding-bottom: 8px; border-bottom: 1px solid #ece7df; margin-bottom: 4px; }
+.subgroup-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #4a4239; }
+.subgroup-meta { font-size: 11px; color: #8a8275; }
+.flow-row { display: grid; grid-template-columns: 70px 1fr 130px 130px 90px; gap: 14px; align-items: center; padding: 11px 0; border-bottom: 1px solid #f3efe7; }
+.flow-row:last-child { border-bottom: none; }
+.flow-name a { color: #1a1a1a; text-decoration: none; font-weight: 500; }
+.flow-name a:hover { color: #d44a8a; text-decoration: underline; }
+.flow-trigger { font-size: 11px; color: #6b6256; }
+.flow-updated { font-size: 11px; color: #8a8275; text-align: right; font-variant-numeric: tabular-nums; }
+.flow-link { font-size: 11px; text-align: right; }
+.flow-link a { color: #d44a8a; text-decoration: none; font-weight: 500; }
+.pill { display: inline-flex; align-items: center; padding: 3px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+.pill-live { background: #dcf2dc; color: #2e6b2c; }
+.pill-draft { background: #fcf0d2; color: #7a5400; }
+.pill-manual { background: #efece6; color: #6b6256; }
+.pill-paused { background: #fce8e8; color: #8c2c2c; }
+.pill-unknown { background: #efece6; color: #6b6256; }
+.empty { font-style: italic; color: #8a8275; padding: 16px 0; font-size: 13px; }
+.error-banner { background: #fde8e8; color: #8c2c2c; padding: 12px 16px; border-radius: 8px; font-size: 13px; margin-bottom: 14px; }
+.info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-top: 14px; }
+.info-tile { background: #faf8f3; border: 1px solid #ece7df; border-radius: 10px; padding: 14px 16px; position: relative; }
+.info-tile.gap { background: #fff5f5; border: 1px dashed #c86060; }
+.info-tile-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #1a1a1a; margin-bottom: 4px; }
+.info-tile-body { font-size: 12px; color: #4a4239; line-height: 1.55; }
+.gap-flag { position: absolute; top: 10px; right: 12px; font-size: 9px; font-weight: 700; text-transform: uppercase; padding: 2px 6px; border-radius: 4px; background: #fce8e8; color: #8c2c2c; }
+.aud-controls { display: flex; gap: 10px; margin: 14px 0 0 0; flex-wrap: wrap; }
+.aud-controls input, .aud-controls select { font: inherit; font-size: 13px; padding: 8px 12px; border: 1px solid #d6d0c2; border-radius: 8px; background: #fff; min-width: 200px; }
+.aud-table-wrap { overflow-x: auto; margin-top: 14px; }
+.aud-table, .perf-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.aud-table th, .perf-table th { text-align: left; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #6b6256; padding: 10px 8px; border-bottom: 1px solid #ddd5c7; }
+.aud-table th.num, .perf-table th.num { text-align: right; }
+.aud-table td, .perf-table td { padding: 10px 8px; border-bottom: 1px solid #f3efe7; vertical-align: middle; }
+.aud-table td.num, .perf-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.aud-table tr:hover td, .perf-table tr:hover td { background: #faf8f3; }
+.cat-pill { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; text-transform: uppercase; }
+.cat-engagement { background: #dcf2dc; color: #2e6b2c; }
+.cat-customer { background: #fce5ef; color: #b03b75; }
+.cat-inactive { background: #fce8e8; color: #8c2c2c; }
+.cat-exclude { background: #efece6; color: #6b6256; }
+.cat-interest { background: #ede5fc; color: #5b3eb5; }
+.cat-geo { background: #e0eef9; color: #2c4d8c; }
+.cat-resend { background: #fcf0d2; color: #7a5400; }
+.cat-ads { background: #fde4cc; color: #8a4d00; }
+.cat-welcome { background: #fde4f3; color: #ab2070; }
+.cat-predictive { background: #d8e7fc; color: #2c4d8c; }
+.cat-preorder { background: #ffeacc; color: #8a4d00; }
+.cat-other { background: #efece6; color: #6b6256; }
+.featured-tag { display: inline-block; margin-left: 6px; padding: 1px 6px; background: #fce5ef; color: #b03b75; font-size: 9px; font-weight: 700; text-transform: uppercase; border-radius: 3px; }
+.seg-desc { font-size: 11px; color: #6b6256; margin-top: 3px; }
+.period-tabs { display: inline-flex; background: #f0ece5; border-radius: 8px; padding: 3px; gap: 2px; }
+.period-btn { background: transparent; border: none; padding: 6px 14px; font: inherit; font-size: 12px; font-weight: 600; color: #6b6256; cursor: pointer; border-radius: 6px; }
+.period-btn.active { background: #fff; color: #1a1a1a; }
+.delta { display: inline-block; margin-left: 6px; font-size: 11px; font-weight: 600; padding: 1px 5px; border-radius: 3px; }
+.delta-pos { background: #dcf2dc; color: #2e6b2c; }
+.delta-neg { background: #fce8e8; color: #8c2c2c; }
+.delta-flat { background: #efece6; color: #6b6256; }
+.delta-na { color: #b8b1a4; font-size: 10px; }
+.flow-diag { margin-top: 6px; font-size: 11px; padding: 6px 8px; border-radius: 6px; }
+.flow-diag.diag-good { background: #ecf6ec; color: #2e6b2c; }
+.flow-diag.diag-warn { background: #fffaeb; color: #7a5400; }
+.flow-diag.diag-alert { background: #fce8e8; color: #8c2c2c; }
+.flow-diag ul { margin: 0; padding-left: 14px; }
+.conf-cluster { background: #fff; border: 1px solid #ece7df; border-radius: 10px; padding: 14px 16px; margin-bottom: 10px; }
+.conf-cluster.severity-high { border-left: 4px solid #c86060; background: #fff8f8; }
+.conf-cluster.severity-med { border-left: 4px solid #c89b3a; }
+.conf-cluster-head { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 6px; }
+.conf-cluster-title { font-weight: 700; font-size: 14px; }
+.conf-cluster-stats { font-size: 11px; color: #6b6256; }
+.conf-warning { font-size: 11px; padding: 6px 10px; background: #fce8e8; color: #8c2c2c; border-radius: 6px; margin-bottom: 8px; }
+.conf-warning.warn-med { background: #fcf0d2; color: #7a5400; }
+.conf-flow-item { display: grid; grid-template-columns: 60px 1fr 130px; gap: 10px; padding: 6px 0; font-size: 12px; }
+.conf-flow-item a { color: #1a1a1a; text-decoration: none; }
+.intersect-item { background: #fffaeb; border: 1px solid #fcf0d2; border-radius: 8px; padding: 10px 14px; font-size: 12px; margin-bottom: 8px; }
+.intersect-formula { font-weight: 600; font-family: ui-monospace, Menlo, monospace; }
+.exclusion-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 10px; margin-top: 10px; }
+.exclusion-card { background: #faf8f3; border: 1px solid #ece7df; border-radius: 8px; padding: 12px 14px; }
+.opp-item { background: #fff; border: 1px solid #ece7df; border-radius: 12px; padding: 16px; margin-bottom: 10px; display: grid; grid-template-columns: 90px 1fr 200px; gap: 16px; align-items: start; }
+.opp-item.priority-high { border-left: 4px solid #c86060; }
+.opp-item.priority-med { border-left: 4px solid #c89b3a; }
+.opp-item.priority-low { border-left: 4px solid #6b6256; }
+.opp-priority { font-size: 9px; font-weight: 700; text-transform: uppercase; padding: 3px 8px; border-radius: 4px; align-self: start; text-align: center; }
+.opp-priority.priority-high { background: #fce8e8; color: #8c2c2c; }
+.opp-priority.priority-med { background: #fcf0d2; color: #7a5400; }
+.opp-priority.priority-low { background: #efece6; color: #6b6256; }
+.opp-impact { background: #f9f5ec; border-radius: 8px; padding: 10px 12px; font-size: 11px; }
+.skeleton { color: #b8b1a4; font-style: italic; }
+@media (max-width: 720px) { .flow-row { grid-template-columns: 1fr; } .opp-item { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="container">
+
+<header class="page-header">
+  <div>
+    <h1 class="page-title">Larroudé · Jornada do perfil — Klaviyo</h1>
+    <div class="page-subtitle" id="page-subtitle">Carregando…</div>
+  </div>
+</header>
+
+<div id="error-banner"></div>
+
+<nav class="tabs">
+  <button class="tab active" data-tab="journey">🗺️ Jornada</button>
+  <button class="tab" data-tab="performance">📈 Performance dos Flows</button>
+  <button class="tab" data-tab="audiences">👥 Audiências</button>
+  <button class="tab" data-tab="conflicts">🔀 Conflitos</button>
+  <button class="tab" data-tab="opportunities">🚀 Oportunidades</button>
+</nav>
+
+<!-- TAB: JORNADA -->
+<div class="tab-content active" data-tab-content="journey">
+  <div class="kpi-section">
+    <div class="kpi-section-label">💰 Revenue · Placed Order últimos 3 meses</div>
+    <div class="kpi-grid" id="kpis-revenue">
+      <div class="kpi"><div class="kpi-label">Revenue L3M</div><div class="kpi-value skeleton">—</div></div>
+      <div class="kpi"><div class="kpi-label">Orders L3M</div><div class="kpi-value skeleton">—</div></div>
+      <div class="kpi"><div class="kpi-label">AOV</div><div class="kpi-value skeleton">—</div></div>
+      <div class="kpi"><div class="kpi-label">Revenue / Repeat Buyer</div><div class="kpi-value skeleton">—</div></div>
+    </div>
+  </div>
+
+  <div class="kpi-section">
+    <div class="kpi-section-label">📊 Saúde da base · Klaviyo em tempo real</div>
+    <div class="kpi-grid" id="kpis-base"></div>
+  </div>
+
+  <div class="kpi-section">
+    <div class="kpi-section-label">⚙️ Flows no Klaviyo</div>
+    <div class="kpi-grid" id="kpis-flows">
+      <div class="kpi"><div class="kpi-label">Total flows</div><div class="kpi-value skeleton">—</div></div>
+      <div class="kpi"><div class="kpi-label">Live</div><div class="kpi-value skeleton">—</div></div>
+      <div class="kpi"><div class="kpi-label">Draft</div><div class="kpi-value skeleton">—</div></div>
+      <div class="kpi"><div class="kpi-label">Manual</div><div class="kpi-value skeleton">—</div></div>
+    </div>
+  </div>
+
+  <section class="card">
+    <div class="card-head">
+      <h2 class="card-title">🗺️ Jornada visual</h2>
+      <div class="card-meta">Clique em qualquer estágio para abrir os flows</div>
+    </div>
+    <pre class="mermaid" id="diagram">flowchart TD
+    placeholder["Carregando..."]</pre>
+    <div class="legend-row">
+      <div class="legend-item"><span class="legend-swatch has"></span> Tem flows live</div>
+      <div class="legend-item"><span class="legend-swatch partial"></span> Parcial</div>
+      <div class="legend-item"><span class="legend-swatch gap"></span> Gap</div>
+      <div class="legend-item"><span class="legend-swatch draft"></span> Draft</div>
+    </div>
+  </section>
+
+  <section class="card" id="card-entry">
+    <div class="section-num">01 · Entrada</div>
+    <h2 class="card-title">Como o perfil chega à base</h2>
+    <div class="info-grid">
+      <div class="info-tile"><div class="info-tile-title">Opt-in Orgânico</div><div class="info-tile-body">Popup, footer, checkout · consentimento explícito → Welcome Series.</div></div>
+      <div class="info-tile"><div class="info-tile-title">Opensend / Reconnect</div><div class="info-tile-body">Identity resolution via pixel — Welcome Opensend convida para opt-in.</div></div>
+      <div class="info-tile gap"><span class="gap-flag">Gap</span><div class="info-tile-title">Meta Ads Lead Gen</div><div class="info-tile-body">Integração ativa, mas sem flow específico — caem no Welcome geral.</div></div>
+      <div class="info-tile"><div class="info-tile-title">Compra Direta</div><div class="info-tile-body">First-time buyer sem opt-in → direto ao Placed Order.</div></div>
+    </div>
+  </section>
+
+  <section class="card" id="card-welcome">
+    <div class="section-num">02 · Welcome &amp; Pre-Purchase</div>
+    <h2 class="card-title">Sequência de boas-vindas</h2>
+    <div id="content-welcome"><div class="empty">Carregando…</div></div>
+  </section>
+
+  <section class="card" id="card-loop">
+    <div class="section-num">03 · Loop de Engajamento</div>
+    <h2 class="card-title">Campanhas + behavioral triggers</h2>
+    <div id="content-loop"><div class="empty">Carregando…</div></div>
+  </section>
+
+  <section class="card" id="card-placed">
+    <div class="section-num">04 · Placed Order</div>
+    <div id="content-placed"><div class="empty">Carregando…</div></div>
+  </section>
+
+  <section class="card" id="card-postPurchase">
+    <div class="section-num">05 · Pós-compra</div>
+    <h2 class="card-title">Order, Review, Cross-sell, Ofertas</h2>
+    <div id="content-postPurchase"><div class="empty">Carregando…</div></div>
+  </section>
+
+  <section class="card" id="card-reactivation">
+    <div class="section-num">06 · Reativação</div>
+    <h2 class="card-title">Winback, Sunset</h2>
+    <div id="content-reactivation"><div class="empty">Carregando…</div></div>
+  </section>
+</div>
+
+<!-- TAB: PERFORMANCE -->
+<div class="tab-content" data-tab-content="performance">
+  <section class="card">
+    <div class="card-head">
+      <h2 class="card-title">📈 Performance dos Flows</h2>
+      <div class="period-tabs">
+        <button class="period-btn" data-period="7">7 dias</button>
+        <button class="period-btn" data-period="14">14 dias</button>
+        <button class="period-btn active" data-period="28">28 dias</button>
+      </div>
+    </div>
+    <div class="card-desc">Δ% mostra crescimento ou queda vs período anterior. Diagnóstico automático abaixo de cada flow.</div>
+    <div style="overflow-x:auto;margin-top:14px">
+      <table class="perf-table">
+        <thead><tr><th>Flow</th><th>Status</th><th class="num">Recipients</th><th class="num">Open Rate</th><th class="num">Click Rate</th><th class="num">CVR</th><th class="num">Revenue</th></tr></thead>
+        <tbody id="perf-tbody"><tr><td colspan="7" class="empty" style="text-align:center">Selecione um período</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+</div>
+
+<!-- TAB: AUDIENCES -->
+<div class="tab-content" data-tab-content="audiences">
+  <section class="card">
+    <div class="card-head">
+      <h2 class="card-title">👥 Todas as audiências</h2>
+      <div class="card-meta" id="aud-meta">—</div>
+    </div>
+    <div class="aud-controls">
+      <input type="text" id="aud-search" placeholder="🔍 Filtrar por nome…">
+      <select id="aud-category-filter"><option value="">Todas as categorias</option></select>
+    </div>
+    <div class="aud-table-wrap">
+      <table class="aud-table">
+        <thead><tr><th>Segmento</th><th>Categoria</th><th class="num">Perfis</th><th>Atualizado</th><th></th></tr></thead>
+        <tbody id="aud-tbody"><tr><td colspan="5" class="empty" style="text-align:center">Carregando…</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+</div>
+
+<!-- TAB: CONFLICTS -->
+<div class="tab-content" data-tab-content="conflicts">
+  <section class="card">
+    <div class="card-head"><h2 class="card-title">🔀 Conflitos &amp; Sobreposições</h2></div>
+    <div class="card-desc">Detecção de risco quando 2+ flows live podem disparar pro mesmo perfil, intersection segments para auditar, e checklist de exclusões.</div>
+    <h3 style="font-size:13px;margin-top:18px">⚠️ Múltiplos flows live no mesmo cluster</h3>
+    <div id="conflict-clusters"></div>
+    <h3 style="font-size:13px;margin-top:24px">🧮 Intersection segments para auditar</h3>
+    <div id="intersect-list"></div>
+    <h3 style="font-size:13px;margin-top:24px">📋 Auditoria de exclusões</h3>
+    <div class="exclusion-grid" id="exclusion-grid"></div>
+  </section>
+</div>
+
+<!-- TAB: OPPORTUNITIES -->
+<div class="tab-content" data-tab-content="opportunities">
+  <section class="card">
+    <div class="card-head"><h2 class="card-title">🚀 Oportunidades quantificadas</h2></div>
+    <div class="card-desc">Gaps na jornada com tamanho real da audiência impactada.</div>
+    <div id="opp-list"></div>
+  </section>
+</div>
+
+</div>
+
+<script>
+// ========== state ==========
+let appData = null;
+let flowsById = {};
+const performanceCache = {};
+let currentPeriod = 28;
+
+// ========== flow ID → stage mapping ==========
+const SECTION_GROUPS = {
+  welcome: [
+    { title: "Welcome Sequence (opt-in orgânico)", flowIds: ["RSTE4P", "SayBzt", "XvAqxK", "RnqGMh"] },
+    { title: "Welcome Opensend / Reconnect", flowIds: ["WZkhuP", "T4iZgg"] },
+    { title: "Variantes em draft", flowIds: ["WnmRHc", "TsFzwe", "SnvSr6"] }
+  ],
+  loop: [
+    { title: "Site Abandonment (BCO)", flowIds: ["WnKMyU", "TanuKg", "UqeZuf", "RqwgQn"] },
+    { title: "Browse Abandonment", flowIds: ["XJ3CF4", "RyKRYF", "XjGtKF", "SfpArG", "UfKxdn"] },
+    { title: "Category Social Proof", flowIds: ["XK7axD", "UT5GEs", "VLswtb", "WiUzb4", "Svy2wj"] },
+    { title: "Abandoned Cart", flowIds: ["YqCz4Y", "T6dYqf", "XQbKUn", "RRTPgh", "TjZdkf", "WdQDb3"] },
+    { title: "Abandoned Checkout", flowIds: ["WFNgM4", "SR3Xsq", "TxrVX2", "Wsya7W", "XvCDuA", "XEh3si"] },
+    { title: "Price Drop · Back in Stock · Low Inventory", flowIds: ["W8NUCx", "XuUTTg", "RFvUPu"] },
+    { title: "Lifecycle &amp; relacionamento", flowIds: ["Wy6euz", "YvrqBe", "TFPH5U"] }
+  ],
+  placed: [{ title: "Placed Order", flowIds: ["RhMeXM", "RJtx9q", "XSaNu3", "VgWxWr"] }],
+  postPurchase: [
+    { title: "Order Follow Up", flowIds: ["WSX7K7", "Tmphb2", "RDLgAg", "Tw5Nyw", "WLZNeg", "WHyx47", "WKtdGH", "UmQGpc", "S9qBMc", "SdcHY8"] },
+    { title: "Review Request &amp; NPS", flowIds: ["W9fthh", "VB2FXg", "WzbfzK", "XHj26f", "YzsnM8", "SeajgG"] },
+    { title: "Cross-sell", flowIds: ["Tx8zHM", "VTEeYE", "VsAKGa"] },
+    { title: "Ofertas, Crédito &amp; Replenishment", flowIds: ["VY4z4V", "RVWhzg", "QRvrAW", "QZHtQW", "RpHqHT", "TFfbHS"] }
+  ],
+  reactivation: [
+    { title: "Winback Free Gift", flowIds: ["RvLrbs", "Ujgp36", "UVDnQb"] },
+    { title: "Sunset Flow", flowIds: ["VVWRJF"] }
+  ]
+};
+
+// ========== helpers ==========
+const escapeHtml = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
+const fmtNum = n => (n == null || isNaN(n)) ? "—" : Number(n).toLocaleString("pt-BR");
+const fmtCurrency = n => (n == null || isNaN(n)) ? "—" : "$" + Number(Math.round(n)).toLocaleString("en-US");
+const fmtPct = (n, d=1) => (n == null || isNaN(n)) ? "—" : (Number(n) * 100).toFixed(d) + "%";
+const fmtDate = iso => { if (!iso) return "—"; try { return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" }); } catch { return iso; } };
+const fmtDateTime = iso => { if (!iso) return "—"; try { return new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }); } catch { return iso; } };
+
+function statusPill(status) {
+  const cls = ["live","draft","manual","paused"].includes(status) ? "pill-" + status : "pill-unknown";
+  return '<span class="pill ' + cls + '">' + escapeHtml(status) + '</span>';
+}
+function deltaSpan(d) {
+  if (d == null) return '<span class="delta-na">—</span>';
+  const cls = Math.abs(d) < 1 ? "delta-flat" : (d > 0 ? "delta-pos" : "delta-neg");
+  const sign = d > 0 ? "+" : "";
+  return '<span class="delta ' + cls + '">' + sign + d.toFixed(0) + '%</span>';
+}
+function calcDelta(c, p) { if (p == null || p === 0) return null; return ((c - p) / p) * 100; }
+
+// ========== Mermaid ==========
+mermaid.initialize({
+  startOnLoad: false, securityLevel: "strict", theme: "base",
+  themeVariables: { primaryColor: "#fce5ef", primaryBorderColor: "#d44a8a", primaryTextColor: "#1a1a1a", lineColor: "#a6896d", fontSize: "15px" },
+  flowchart: { curve: "basis", padding: 20, useMaxWidth: true }
+});
+
+function buildDiagramText(counts) {
+  const c = id => { const v = counts[id]; return typeof v === "number" ? "<br/>~" + Number(v).toLocaleString("pt-BR") : ""; };
+  return `flowchart TD
+    subgraph S1 ["01 · Entrada"]
+      direction LR
+      optin["Opt-in Orgânico"]:::has
+      opensendEntry["Opensend / Reconnect"]:::has
+      metaAds["Meta Lead Gen"]:::gap
+      direct["Compra Direta"]:::has
+    end
+    subgraph S2 ["02 · Welcome"]
+      welcome["Welcome${c('XF8f94')}"]:::has
+      opensendNode["Welcome Opensend"]:::has
+    end
+    optin --> welcome
+    metaAds --> welcome
+    opensendEntry --> opensendNode
+    opensendNode --> welcome
+    direct --> placed
+    welcome -->|comprou| placed
+    welcome -->|não comprou| loop
+    subgraph S3 ["03 · Loop de Engajamento"]
+      loop["Campanhas + RFM${c('VzX6n5')}"]:::has
+      browseAbandon["Browse / Site Abandonment"]:::has
+      abandonedCart["Abandoned Cart"]:::has
+      abandonedCheckout["Abandoned Checkout"]:::has
+    end
+    loop -->|visitou produto| browseAbandon
+    loop -->|adicionou ao carrinho| abandonedCart
+    loop -->|iniciou checkout| abandonedCheckout
+    browseAbandon -->|comprou| placed
+    abandonedCart -->|comprou| placed
+    abandonedCheckout -->|comprou| placed
+    loop -->|sem engajar 30D| lapsing["Lapsing 30D"]:::gap
+    placed["04 · Placed Order${c('Sudqwh')}"]:::has
+    placed --> postPurchase
+    subgraph S5 ["05 · Pós-compra"]
+      postPurchase["Order, Review, Cross-sell${c('TDXDzA')}"]:::has
+      nps["NPS / UGC"]:::partial
+      loyalty["Loyalty &amp; VIP${c('WGrCjj')}"]:::gap
+      referralProg["Programa de Referência"]:::gap
+      replenish["Replenishment${c('RaXvQd')}"]:::partial
+    end
+    postPurchase --> nps --> loyalty --> referralProg --> replenish
+    replenish -->|recompra| placed
+    replenish -->|inativo 60-90D| reactivation
+    subgraph S6 ["06 · Reativação"]
+      reactivation["Winback${c('VDLdYZ')}"]:::partial
+      sunset["Sunset Flow"]:::draft
+    end
+    lapsing --> reactivation
+    reactivation -->|engajou| loop
+    reactivation -->|sem resposta| sunset
+    sunset --> exitNode(["Saiu da base${c('QQPern')}"])
+    classDef has fill:#fce5ef,stroke:#d44a8a,stroke-width:1.5px,color:#1a1a1a
+    classDef partial fill:#fff7e0,stroke:#c89b3a,stroke-width:1.5px,color:#1a1a1a,stroke-dasharray: 4 3
+    classDef gap fill:#fce8e8,stroke:#c86060,stroke-width:1.5px,color:#1a1a1a,stroke-dasharray: 4 3
+    classDef draft fill:#f4eafc,stroke:#a06fc8,stroke-width:1.5px,color:#1a1a1a
+    style S1 fill:#faf6ee,stroke:#d6cdb8
+    style S2 fill:#faf6ee,stroke:#d6cdb8
+    style S3 fill:#faf6ee,stroke:#d6cdb8
+    style S5 fill:#faf6ee,stroke:#d6cdb8
+    style S6 fill:#faf6ee,stroke:#d6cdb8`;
+}
+
+async function renderDiagram(counts) {
+  const el = document.getElementById("diagram");
+  el.removeAttribute("data-processed");
+  el.textContent = buildDiagramText(counts || {});
+  await mermaid.run({ querySelector: "#diagram" });
+}
+
+// ========== render: revenue/base/flows KPIs ==========
+function renderRevenueKpis() {
+  const r = appData.revenue;
+  if (!r) return;
+  const aov = r.orders > 0 ? r.revenue / r.orders : 0;
+  const repeatBuyers = appData.keySegmentCounts && appData.keySegmentCounts["TDXDzA"];
+  const revPerRepeat = (repeatBuyers && r.revenue) ? r.revenue / repeatBuyers : null;
+  const cells = document.querySelectorAll("#kpis-revenue .kpi-value");
+  cells[0].textContent = fmtCurrency(r.revenue); cells[0].classList.remove("skeleton");
+  cells[1].textContent = fmtNum(r.orders); cells[1].classList.remove("skeleton");
+  cells[2].textContent = fmtCurrency(aov); cells[2].classList.remove("skeleton");
+  cells[3].textContent = revPerRepeat ? fmtCurrency(revPerRepeat) : "—"; cells[3].classList.remove("skeleton");
+}
+
+function renderBaseKpis() {
+  const grid = document.getElementById("kpis-base");
+  const featured = appData.featuredSegments || [];
+  const counts = appData.keySegmentCounts || {};
+  // Mostra os 6 principais (skip ENGAGED L30D e L90D que são variantes)
+  const order = ["VzX6n5", "QQPern", "VDLdYZ", "TDXDzA", "WGrCjj", "RaXvQd"];
+  grid.innerHTML = order.map(id => {
+    const f = featured.find(x => x.id === id) || {};
+    const count = counts[id];
+    return '<div class="kpi"><div class="kpi-label">' + escapeHtml(f.name || id) + '</div><div class="kpi-value">' + (count != null ? fmtNum(count) : "—") + '</div><div class="kpi-sub">' + escapeHtml(f.desc || "") + '</div></div>';
+  }).join("");
+}
+
+function renderFlowKpis() {
+  const flows = appData.flows || [];
+  const live = flows.filter(f => f.status === "live").length;
+  const draft = flows.filter(f => f.status === "draft").length;
+  const manual = flows.filter(f => f.status === "manual").length;
+  const cells = document.querySelectorAll("#kpis-flows .kpi-value");
+  cells[0].textContent = fmtNum(flows.length); cells[0].classList.remove("skeleton");
+  cells[1].textContent = fmtNum(live); cells[1].classList.remove("skeleton");
+  cells[2].textContent = fmtNum(draft); cells[2].classList.remove("skeleton");
+  cells[3].textContent = fmtNum(manual); cells[3].classList.remove("skeleton");
+  document.getElementById("page-subtitle").innerHTML = "Larroudé · <strong>" + flows.length + "</strong> flows · <strong>" + live + "</strong> live · <strong>" + draft + "</strong> draft · dados de <strong>" + fmtDateTime(appData.fetchedAt) + "</strong>";
+}
+
+// ========== render: journey sections ==========
+function renderFlowRow(f) {
+  return `<div class="flow-row">
+    <div>${statusPill(f.status)}</div>
+    <div class="flow-name"><a href="https://www.klaviyo.com/flow/${encodeURIComponent(f.id)}/edit" target="_blank" rel="noopener">${escapeHtml(f.name)}</a></div>
+    <div class="flow-trigger">${escapeHtml(f.triggerType || "")}</div>
+    <div class="flow-updated">${fmtDateTime(f.updated)}</div>
+    <div class="flow-link"><a href="https://www.klaviyo.com/flow/${encodeURIComponent(f.id)}/edit" target="_blank" rel="noopener">Abrir →</a></div>
+  </div>`;
+}
+
+function renderSection(key) {
+  const groups = SECTION_GROUPS[key] || [];
+  let html = "";
+  for (const g of groups) {
+    const flows = (g.flowIds || []).map(id => flowsById[id]).filter(Boolean);
+    html += '<div class="subgroup"><div class="subgroup-head"><div class="subgroup-title">' + g.title + '</div><div class="subgroup-meta">' + flows.length + ' flows</div></div>';
+    html += flows.length === 0 ? '<div class="empty">Nenhum flow.</div>' : flows.map(renderFlowRow).join("");
+    html += '</div>';
+  }
+  document.getElementById("content-" + key).innerHTML = html;
+}
+
+function renderAllSections() { ["welcome", "loop", "placed", "postPurchase", "reactivation"].forEach(renderSection); }
+
+// ========== AUDIENCES ==========
+function categorizeSegment(name) {
+  if (!name) return "other";
+  if (/^\[INTEREST\]/i.test(name)) return "interest";
+  if (/^\[GEO\]/i.test(name)) return "geo";
+  if (/^\[RESEND\]/i.test(name) || /resend|non[- ]?openers/i.test(name)) return "resend";
+  if (/^\[ADS\]/i.test(name)) return "ads";
+  if (/^\[EXCLUDE\]/i.test(name) || /unengaged|never engaged|exclude/i.test(name)) return "exclude";
+  if (/welcome/i.test(name)) return "welcome";
+  if (/predictive|black crow|^bco /i.test(name)) return "predictive";
+  if (/pre.?order/i.test(name)) return "preorder";
+  if (/inactive|lapsed|churn|sunset/i.test(name)) return "inactive";
+  if (/vip|repeat|customer|buyer|high.ltv|loyalty|collect/i.test(name)) return "customer";
+  if (/engaged|active/i.test(name)) return "engagement";
+  return "other";
+}
+const CAT_LABELS = { engagement: "Engagement", customer: "Customer", inactive: "Inactive", exclude: "Exclude", interest: "Interest", geo: "Geo", resend: "Resend", ads: "Ads", welcome: "Welcome", predictive: "Predictive", preorder: "Pre-Order", other: "Outros" };
+
+function renderAudiences() {
+  const segs = (appData.allSegments || []).map(s => ({ ...s, category: categorizeSegment(s.name), featured: !!(appData.featuredSegments || []).find(f => f.id === s.id) }));
+  const search = (document.getElementById("aud-search").value || "").toLowerCase();
+  const cat = document.getElementById("aud-category-filter").value;
+  let filtered = segs.filter(s => {
+    if (search && !s.name.toLowerCase().includes(search)) return false;
+    if (cat && s.category !== cat) return false;
+    return true;
+  });
+  filtered.sort((a, b) => (b.featured ? 1 : 0) - (a.featured ? 1 : 0) || (a.name || "").localeCompare(b.name || ""));
+
+  document.getElementById("aud-meta").textContent = filtered.length + " de " + segs.length + " segmentos";
+  document.getElementById("aud-tbody").innerHTML = filtered.length === 0 ? '<tr><td colspan="5" class="empty">Sem resultados</td></tr>' : filtered.map(s => {
+    const featured = (appData.featuredSegments || []).find(f => f.id === s.id);
+    const count = (appData.keySegmentCounts || {})[s.id];
+    const countTxt = typeof count === "number" ? fmtNum(count) : (s.featured ? "—" : '<span class="skeleton">não carregado</span>');
+    return '<tr><td><strong>' + escapeHtml(s.name) + '</strong>' + (s.featured ? '<span class="featured-tag">Featured</span>' : '') + (featured ? '<div class="seg-desc">' + featured.desc + '</div>' : '') + '</td><td><span class="cat-pill cat-' + s.category + '">' + CAT_LABELS[s.category] + '</span></td><td class="num">' + countTxt + '</td><td><span style="font-size:11px;color:#8a8275">' + fmtDate(s.updated) + '</span></td><td><a href="https://www.klaviyo.com/lists/' + encodeURIComponent(s.id) + '" target="_blank" rel="noopener" style="color:#d44a8a;font-size:11px">Abrir →</a></td></tr>';
+  }).join("");
+
+  // Rebuild filter dropdown
+  const sel = document.getElementById("aud-category-filter");
+  if (!sel.dataset.built) {
+    const cats = Array.from(new Set(segs.map(s => s.category))).sort();
+    sel.innerHTML = '<option value="">Todas as categorias</option>' + cats.map(c => '<option value="' + c + '">' + CAT_LABELS[c] + ' (' + segs.filter(s => s.category === c).length + ')</option>').join("");
+    sel.dataset.built = "1";
+  }
+}
+
+// ========== PERFORMANCE ==========
+async function loadPerformance(days) {
+  if (performanceCache[days]) return renderPerformance(days);
+  document.getElementById("perf-tbody").innerHTML = '<tr><td colspan="7" class="empty" style="text-align:center">Carregando ~10-15s…</td></tr>';
+  try {
+    const res = await fetch("/api/performance?days=" + days);
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    performanceCache[days] = data;
+    renderPerformance(days);
+  } catch (e) {
+    document.getElementById("perf-tbody").innerHTML = '<tr><td colspan="7" class="empty" style="text-align:center;color:#8c2c2c">Erro: ' + escapeHtml(e.message) + '</td></tr>';
+  }
+}
+
+function diagnose(curr, prev) {
+  const tips = [];
+  let level = "good";
+  if (!curr.recipients || curr.recipients === 0) return { level: "warn", tips: ["Nenhum envio neste período."] };
+  if (curr.openRate < 0.25) { tips.push("Open rate <strong>" + (curr.openRate * 100).toFixed(1) + "%</strong> baixo — testar subject/sender, deliverability."); level = "warn"; }
+  else if (curr.openRate >= 0.5) tips.push("Open rate <strong>" + (curr.openRate * 100).toFixed(1) + "%</strong> excelente.");
+  const cto = curr.opens > 0 ? curr.clicks / curr.opens : 0;
+  if (curr.openRate >= 0.4 && cto < 0.05) { tips.push("Abriu mas não clicou (CTOR " + (cto * 100).toFixed(1) + "%) — copy/CTA fraca."); level = "warn"; }
+  if (curr.conversionRate < 0.005 && curr.recipients > 100) { tips.push("CVR baixa — revisar oferta, exclusão de não-buyers."); if (level === "good") level = "warn"; }
+  if (prev && prev.revenue > 0) {
+    const dRev = (curr.revenue - prev.revenue) / prev.revenue * 100;
+    if (dRev < -25) { tips.push("Revenue caiu <strong>" + dRev.toFixed(0) + "%</strong> vs período anterior."); level = "alert"; }
+    else if (dRev > 50) tips.push("Revenue subiu <strong>+" + dRev.toFixed(0) + "%</strong> — replicar.");
+  }
+  if (tips.length === 0) tips.push("Performance dentro do esperado.");
+  return { level, tips };
+}
+
+function renderPerformance(days) {
+  const data = performanceCache[days];
+  if (!data) return;
+  const rows = Object.values(data.current || {}).filter(f => f.recipients > 0).sort((a, b) => b.revenue - a.revenue);
+  if (rows.length === 0) {
+    document.getElementById("perf-tbody").innerHTML = '<tr><td colspan="7" class="empty" style="text-align:center">Sem dados de envio</td></tr>';
+    return;
+  }
+  document.getElementById("perf-tbody").innerHTML = rows.map(f => {
+    const p = (data.previous || {})[f.flow_id] || {};
+    const d = diagnose(f, p);
+    const diagHtml = '<div class="flow-diag diag-' + d.level + '"><ul>' + d.tips.map(t => '<li>' + t + '</li>').join("") + '</ul></div>';
+    return '<tr><td><a href="https://www.klaviyo.com/flow/' + encodeURIComponent(f.flow_id) + '/edit" target="_blank" rel="noopener" style="color:#1a1a1a;text-decoration:none;font-weight:500">' + escapeHtml(f.flow_name) + '</a>' + diagHtml + '</td><td>' + statusPill(f.status) + '</td><td class="num">' + fmtNum(f.recipients) + deltaSpan(calcDelta(f.recipients, p.recipients)) + '</td><td class="num">' + fmtPct(f.openRate, 1) + deltaSpan(calcDelta(f.openRate, p.openRate)) + '</td><td class="num">' + fmtPct(f.clickRate, 2) + deltaSpan(calcDelta(f.clickRate, p.clickRate)) + '</td><td class="num">' + fmtPct(f.conversionRate, 2) + deltaSpan(calcDelta(f.conversionRate, p.conversionRate)) + '</td><td class="num">' + fmtCurrency(f.revenue) + deltaSpan(calcDelta(f.revenue, p.revenue)) + '</td></tr>';
+  }).join("");
+}
+
+// ========== CONFLICTS ==========
+const FLOW_CLUSTERS = [
+  { id: "welcome", label: "Welcome Series", icon: "🚪", patterns: [/welcome series/i, /^welcome /i] },
+  { id: "abandoned_cart", label: "Abandoned Cart", icon: "🛒", patterns: [/abandoned cart/i] },
+  { id: "abandoned_checkout", label: "Abandoned Checkout", icon: "💳", patterns: [/abandoned checkout/i] },
+  { id: "browse", label: "Browse Abandonment", icon: "👀", patterns: [/browse abandonment/i] },
+  { id: "site", label: "Site Abandonment", icon: "🌐", patterns: [/site abandonment/i, /bco - site/i] },
+  { id: "category", label: "Category Social Proof", icon: "👟", patterns: [/category social proof/i] },
+  { id: "order_followup", label: "Order Follow Up / Shipping", icon: "📦", patterns: [/order follow up/i, /separate shipment/i, /shipping confirmation/i, /care instructions/i, /placed order/i] },
+  { id: "review", label: "Review / NPS", icon: "⭐", patterns: [/okendo/i, /nps/i, /review request/i, /survey/i] },
+  { id: "cross_sell", label: "Cross-sell", icon: "🔄", patterns: [/cross.sell/i, /next best/i, /predictive cross/i] },
+  { id: "winback", label: "Winback", icon: "🎁", patterns: [/winback/i, /free gift/i, /churn prevention/i, /failure to launch/i] },
+  { id: "loyalty", label: "Loyalty / Credit", icon: "💝", patterns: [/credit redemption/i, /credit earned/i, /2nd purchase/i, /first purchase anniversary/i, /next 2nd/i] },
+  { id: "stock", label: "Back In Stock / Low Inventory", icon: "📥", patterns: [/back in stock/i, /low inventory/i] },
+  { id: "price_drop", label: "Price Drop", icon: "💰", patterns: [/price drop/i] },
+  { id: "birthday", label: "Birthday", icon: "🎂", patterns: [/birthday/i] },
+  { id: "ambassador", label: "Ambassador / B2B", icon: "🤝", patterns: [/ambassador/i, /b2b/i] },
+  { id: "trust", label: "Pre-Purchase Trust", icon: "🛡️", patterns: [/pre-purchase trust/i, /non-converter/i] },
+  { id: "opensend", label: "Opensend", icon: "🔗", patterns: [/opensend/i, /reconnect/i] },
+  { id: "preorder", label: "Pre-Order", icon: "📅", patterns: [/pre-order/i, /pre.?ordered/i] },
+  { id: "sunset", label: "Sunset", icon: "🌅", patterns: [/sunset/i] }
+];
+
+function renderConflicts() {
+  const flows = appData.flows || [];
+  const buckets = FLOW_CLUSTERS.map(c => ({ ...c, flows: [], live: 0, draft: 0, manual: 0 }));
+  for (const f of flows) {
+    for (const c of buckets) {
+      if (c.patterns.some(p => p.test(f.name))) {
+        c.flows.push(f);
+        if (f.status === "live") c.live++;
+        else if (f.status === "draft") c.draft++;
+        else if (f.status === "manual") c.manual++;
+        break;
+      }
+    }
+  }
+  const clusters = buckets.filter(c => c.flows.length > 0).sort((a, b) => b.live - a.live);
+  document.getElementById("conflict-clusters").innerHTML = clusters.map(c => {
+    const sev = c.live >= 3 ? "high" : (c.live >= 2 ? "med" : "low");
+    let warn = "";
+    if (c.live >= 3) warn = '<div class="conf-warning">🚨 ' + c.live + ' flows LIVE — verifique exclusões mútuas urgente.</div>';
+    else if (c.live >= 2) warn = '<div class="conf-warning warn-med">⚠️ ' + c.live + ' flows live — confirme exclusões mútuas.</div>';
+    return '<div class="conf-cluster severity-' + sev + '"><div class="conf-cluster-head"><div class="conf-cluster-title">' + c.icon + ' ' + c.label + '</div><div class="conf-cluster-stats"><strong>' + c.live + ' live</strong> · ' + c.draft + ' draft' + (c.manual ? ' · ' + c.manual + ' manual' : '') + '</div></div>' + warn + c.flows.map(f => '<div class="conf-flow-item">' + statusPill(f.status) + '<a href="https://www.klaviyo.com/flow/' + f.id + '/edit" target="_blank" rel="noopener">' + escapeHtml(f.name) + '</a><span style="font-size:10px;color:#6b6256">' + escapeHtml(f.triggerType) + '</span></div>').join("") + '</div>';
+  }).join("");
+
+  const intersects = [
+    { f: "VIP Customers ∩ KL - Lapsed Customers", r: "Um VIP não deveria estar 'at risk' se RFM está correto." },
+    { f: "ENGAGED L60D ∩ [EXCLUDE] Unengaged", r: "Definições mutuamente exclusivas." },
+    { f: "Welcome Series active list ∩ Repeat Buyers", r: "Buyers já passaram do welcome." },
+    { f: "Abandoned Cart triggered ∩ Placed Order L24H", r: "Quem comprou ontem não deveria receber lembrete de carrinho." },
+    { f: "[EXCLUDE] Unengaged ∩ Subscribed L7D", r: "Subscriber novo não pode estar 'unengaged' ainda." },
+    { f: "VIP Customers ∩ ENGAGED L30D", r: "Esperamos VIPs engajados — se baixa cobertura, churn no topo." },
+    { f: "Browse Abandonment active ∩ Abandoned Cart active", r: "Cart é mais relevante que browse — revisar exclusão." }
+  ];
+  document.getElementById("intersect-list").innerHTML = intersects.map(i => '<div class="intersect-item"><div class="intersect-formula">' + i.f + '</div><div style="margin-top:4px">' + i.r + '</div></div>').join("");
+
+  const exclusions = [
+    { flow: "🚪 Welcome Series", excl: ["Excluir buyers (Placed Order alltime > 0)", "Excluir [EXCLUDE] Unengaged"] },
+    { flow: "🛒 Abandoned Cart", excl: ["Excluir Placed Order L24H", "Mutual exclusion entre Shopify, TW e Reconnect"] },
+    { flow: "💳 Abandoned Checkout", excl: ["Excluir Placed Order L1H", "Mutual exclusion com Abandoned Cart"] },
+    { flow: "👀 Browse Abandonment", excl: ["Excluir quem está em Abandoned Cart", "Excluir Placed Order L24H"] },
+    { flow: "🎁 Winback", excl: ["Incluir só Lapsed Customers", "Cooldown 60d"] },
+    { flow: "🌅 Sunset", excl: ["Incluir só [EXCLUDE] Unengaged + Winback sem resposta", "Cooldown 30d"] }
+  ];
+  document.getElementById("exclusion-grid").innerHTML = exclusions.map(e => '<div class="exclusion-card"><div style="font-weight:700;font-size:12px;margin-bottom:6px">' + e.flow + '</div><ul style="list-style:none;padding:0;margin:0;font-size:11px">' + e.excl.map(x => '<li style="padding:2px 0">✓ ' + x + '</li>').join("") + '</ul></div>').join("");
+}
+
+// ========== OPPORTUNITIES ==========
+function renderOpportunities() {
+  const c = id => (appData.keySegmentCounts || {})[id];
+  const opps = [
+    { p: "high", t: "Ativar Winback Free Gift (hoje em manual)", d: 'BCO - Winback Free Gift Standard existe em status manual. Ativar como flow live com gatilho automático.', i: typeof c("VDLdYZ") === "number" ? "Audiência: <strong>" + fmtNum(c("VDLdYZ")) + "</strong> Lapsed. Reativação a 5% = ~" + fmtNum(Math.round(c("VDLdYZ") * 0.05)) + "." : "Audiência: Lapsed Customers." },
+    { p: "high", t: "Ativar Sunset Flow (hoje em draft)", d: "Last chance antes de supressão. Protege deliverability.", i: typeof c("QQPern") === "number" ? "Audiência: <strong>" + fmtNum(c("QQPern")) + "</strong> Unengaged." : "" },
+    { p: "high", t: "Implementar RFM Category Change (Loyalty / VIP)", d: "Existe segmento VIP, mas sem flow detectando mudanças de tier.", i: typeof c("WGrCjj") === "number" ? "Tier máximo: <strong>" + fmtNum(c("WGrCjj")) + "</strong> VIPs." : "" },
+    { p: "med", t: "Criar flow Meta Ads Lead Gen", d: "Integração Meta Lead Ad ativa. Sem flow específico, leads caem no Welcome geral." },
+    { p: "med", t: "Criar Lapsing Alert 30D", d: "Alerta intermediário antes de virar Lapsed (60-90D)." },
+    { p: "med", t: "Ativar Predictive Next Purchase + Anniversary", d: "Drafts existentes — replenishment é o melhor lever pra repurchase orgânica." },
+    { p: "med", t: "Ativar NPS / Survey nurture", d: "Drafts no Klaviyo. Coleta sistemática de NPS habilita campanhas com social proof." },
+    { p: "low", t: "Programa de Referência", d: "Eventos Okendo Referral existem mas sem flow Klaviyo orquestrando." }
+  ];
+  document.getElementById("opp-list").innerHTML = opps.map(o => '<div class="opp-item priority-' + o.p + '"><div class="opp-priority priority-' + o.p + '">' + (o.p === "high" ? "Alta" : o.p === "med" ? "Média" : "Baixa") + '</div><div><div style="font-weight:700;font-size:14px">' + escapeHtml(o.t) + '</div><div style="font-size:12px;color:#4a4239;margin-top:3px">' + o.d + '</div></div><div class="opp-impact"><div style="font-weight:700;font-size:9px;text-transform:uppercase;color:#6b6256;margin-bottom:4px">Impacto / audiência</div>' + (o.i || "") + '</div></div>').join("");
+}
+
+// ========== TABS ==========
+function switchTab(name) {
+  document.querySelectorAll(".tab").forEach(b => b.classList.toggle("active", b.dataset.tab === name));
+  document.querySelectorAll(".tab-content").forEach(c => c.classList.toggle("active", c.dataset.tabContent === name));
+  if (name === "performance" && !performanceCache[currentPeriod]) loadPerformance(currentPeriod);
+  if (name === "audiences") renderAudiences();
+  if (name === "conflicts") renderConflicts();
+  if (name === "opportunities") renderOpportunities();
+}
+document.querySelectorAll(".tab").forEach(b => b.addEventListener("click", () => switchTab(b.dataset.tab)));
+document.querySelectorAll(".period-btn").forEach(b => b.addEventListener("click", () => {
+  currentPeriod = parseInt(b.dataset.period, 10);
+  document.querySelectorAll(".period-btn").forEach(x => x.classList.toggle("active", x === b));
+  loadPerformance(currentPeriod);
+}));
+document.getElementById("aud-search").addEventListener("input", renderAudiences);
+document.getElementById("aud-category-filter").addEventListener("change", renderAudiences);
+
+// ========== INIT ==========
+async function init() {
+  try {
+    const res = await fetch("/api/data");
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    appData = await res.json();
+    if (appData.error) throw new Error(appData.error);
+    flowsById = {};
+    (appData.flows || []).forEach(f => flowsById[f.id] = f);
+    renderRevenueKpis();
+    renderBaseKpis();
+    renderFlowKpis();
+    await renderDiagram(appData.keySegmentCounts || {});
+    renderAllSections();
+  } catch (e) {
+    document.getElementById("error-banner").innerHTML = '<div class="error-banner">⚠️ Erro ao carregar dados: ' + escapeHtml(e.message) + '<br><small>Verifique se KLAVIYO_API_KEY está configurada nas env vars do Vercel.</small></div>';
+  }
+}
+init();
+</script>
+</body>
+</html>
