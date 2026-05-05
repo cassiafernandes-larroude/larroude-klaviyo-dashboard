@@ -19,10 +19,10 @@ export default async function handler(req) {
 
   try {
     const all = [];
-    let url = "/metrics?fields[metric]=name,integration&page[size]=100";
+    let nextUrl = "/metrics?fields[metric]=name,integration";
     let safety = 5;
-    while (url && safety-- > 0) {
-      const res = await fetch(KLAVIYO_BASE + url, {
+    while (nextUrl && safety-- > 0) {
+      const res = await fetch(KLAVIYO_BASE + nextUrl, {
         headers: { "Authorization": "Klaviyo-API-Key " + apiKey, "accept": "application/json", "revision": REVISION }
       });
       if (!res.ok) {
@@ -37,9 +37,8 @@ export default async function handler(req) {
           integration: m.attributes && m.attributes.integration && m.attributes.integration.name
         });
       });
-      url = j.links && j.links.next ? j.links.next.replace(KLAVIYO_BASE, "") : null;
+      nextUrl = j.links && j.links.next ? j.links.next.replace(KLAVIYO_BASE, "") : null;
     }
-    // Filtra métricas que parecem de "pedido/order/placed"
     const orderRelated = all.filter(m => {
       const n = (m.name || "").toLowerCase();
       return n.includes("placed") || n.includes("order") || n.includes("pedido") || n.includes("compra") || n.includes("checkout") || n.includes("purchase");
@@ -48,7 +47,7 @@ export default async function handler(req) {
       account,
       total: all.length,
       orderRelated,
-      all: all.slice(0, 100)
+      all
     }, null, 2), {
       status: 200,
       headers: { "content-type": "application/json" }
