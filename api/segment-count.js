@@ -1,9 +1,10 @@
 // Vercel Edge Function — busca profile_count de UM segmento.
 // Cada segmento tem seu próprio orçamento de 25s, sem competir com outros fetches.
+// Inclui retry com backoff em caso de 429 (rate limit do Klaviyo).
 // Cache de 24h por segmento (s-maxage=86400).
 //
 // Uso: GET /api/segment-count?id=XF8f94
-// Resposta: { id: "XF8f94", count: 377204, fetchedAt: "..." } ou { id, count: null, error: "..." }
+// Resposta: { id, name, count, fetchedAt } ou { id, count: null, error }
 //
 // Env var: KLAVIYO_API_KEY
 
@@ -31,30 +32,47 @@ export default async function handler(req) {
     });
   }
 
-  try {
-    const res = await fetch(
-      KLAVIYO_BASE + "/segments/" + encodeURIComponent(id) + "?additional-fields[segment]=profile_count",
-      {
-        headers: {
-          "Authorization": "Klaviyo-API-Key " + apiKey,
-          "accept": "application/json",
-          "revision": REVISION
+  // Retry com backoff em caso de 429 (rate limit do Klaviyo)
+  async function fetchWithRetry(maxAttempts) {
+    let last = null;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      const res = await fetch(
+        KLAVIYO_BASE + "/segments/" + encodeURIComponent(id) + "?additional-fields[segment]=profile_count",
+        {
+          headers: {
+            "Authorization": "Klaviyo-API-Key " + apiKey,
+            "accept": "application/json",
+            "revision": REVISION
+          }
         }
+      );
+      if (res.ok) return res;
+      if (res.status !== 429) return res;
+      const retryAfter = parseInt(res.headers.get("Retry-After") || "0", 10);
+      const waitMs = retryAfter > 0 ? retryAfter * 1000 : Math.min(1000 * Math.pow(2, attempt - 1), 8000);
+      last = res;
+      if (attempt < maxAttempts) {
+        await new Promise(r => setTimeout(r, waitMs));
       }
-    );
+    }
+    return last;
+  }
 
-    if (!res.ok) {
-      const text = await res.text();
+  try {
+    const res = await fetchWithRetry(5);
+
+    if (!res || !res.ok) {
+      const text = res ? await res.text() : "no response";
       return new Response(JSON.stringify({
         id,
         count: null,
-        error: "Klaviyo " + res.status + ": " + text.slice(0, 200),
+        error: "Klaviyo " + (res ? res.status : "?") + ": " + text.slice(0, 200),
         fetchedAt: new Date().toISOString()
       }), {
-        status: 200, // sempre 200 para o frontend não falhar
+        status: 200,
         headers: {
           "content-type": "application/json",
-          "cache-control": "public, s-maxage=300" // cache curto em caso de erro (5min)
+          "cache-control": "public, s-maxage=300"
         }
       });
     }
@@ -74,7 +92,6 @@ export default async function handler(req) {
       status: 200,
       headers: {
         "content-type": "application/json",
-        // Cache longo só se o count veio populado, senão cache curto pra tentar de novo logo
         "cache-control": count !== null
           ? "public, s-maxage=86400, stale-while-revalidate=3600"
           : "public, s-maxage=300"
