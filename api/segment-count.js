@@ -59,7 +59,7 @@ export default async function handler(req) {
   }
 
   try {
-    const res = await fetchWithRetry(5);
+    const res = await fetchWithRetry(8);
 
     if (!res || !res.ok) {
       const text = res ? await res.text() : "no response";
