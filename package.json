@@ -1,0 +1,10 @@
+{
+  "name": "larroude-klaviyo-dashboard",
+  "version": "1.0.0",
+  "description": "Dashboard de jornada Klaviyo para Larroudé — deploy Vercel com refresh diário",
+  "private": true,
+  "scripts": {
+    "dev": "vercel dev",
+    "deploy": "vercel --prod"
+  }
+}
