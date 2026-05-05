@@ -753,4 +753,99 @@ function renderOpportunities() {
   const opps = [
     { p: "high", t: "Ativar Winback Free Gift (hoje em manual)", d: 'BCO - Winback Free Gift Standard existe em status manual. Ativar como flow live com gatilho automático.', i: typeof c("VDLdYZ") === "number" ? "Audiência: <strong>" + fmtNum(c("VDLdYZ")) + "</strong> Lapsed. Reativação a 5% = ~" + fmtNum(Math.round(c("VDLdYZ") * 0.05)) + "." : "Audiência: Lapsed Customers." },
     { p: "high", t: "Ativar Sunset Flow (hoje em draft)", d: "Last chance antes de supressão. Protege deliverability.", i: typeof c("QQPern") === "number" ? "Audiência: <strong>" + fmtNum(c("QQPern")) + "</strong> Unengaged." : "" },
-   
+    { p: "high", t: "Implementar RFM Category Change (Loyalty / VIP)", d: "Existe segmento VIP, mas sem flow detectando mudanças de tier.", i: typeof c("WGrCjj") === "number" ? "Tier máximo: <strong>" + fmtNum(c("WGrCjj")) + "</strong> VIPs." : "" },
+    { p: "med", t: "Criar flow Meta Ads Lead Gen", d: "Integração Meta Lead Ad ativa. Sem flow específico, leads caem no Welcome geral." },
+    { p: "med", t: "Criar Lapsing Alert 30D", d: "Alerta intermediário antes de virar Lapsed (60-90D)." },
+    { p: "med", t: "Ativar Predictive Next Purchase + Anniversary", d: "Drafts existentes — replenishment é o melhor lever pra repurchase orgânica." },
+    { p: "med", t: "Ativar NPS / Survey nurture", d: "Drafts no Klaviyo. Coleta sistemática de NPS habilita campanhas com social proof." },
+    { p: "low", t: "Programa de Referência", d: "Eventos Okendo Referral existem mas sem flow Klaviyo orquestrando." }
+  ];
+  document.getElementById("opp-list").innerHTML = opps.map(o => '<div class="opp-item priority-' + o.p + '"><div class="opp-priority priority-' + o.p + '">' + (o.p === "high" ? "Alta" : o.p === "med" ? "Média" : "Baixa") + '</div><div><div style="font-weight:700;font-size:14px">' + escapeHtml(o.t) + '</div><div style="font-size:12px;color:#4a4239;margin-top:3px">' + o.d + '</div></div><div class="opp-impact"><div style="font-weight:700;font-size:9px;text-transform:uppercase;color:#6b6256;margin-bottom:4px">Impacto / audiência</div>' + (o.i || "") + '</div></div>').join("");
+}
+
+// ========== TABS ==========
+function switchTab(name) {
+  document.querySelectorAll(".tab").forEach(b => b.classList.toggle("active", b.dataset.tab === name));
+  document.querySelectorAll(".tab-content").forEach(c => c.classList.toggle("active", c.dataset.tabContent === name));
+  if (name === "performance" && !performanceCache[currentPeriod]) loadPerformance(currentPeriod);
+  if (name === "audiences") renderAudiences();
+  if (name === "conflicts") renderConflicts();
+  if (name === "opportunities") renderOpportunities();
+}
+document.querySelectorAll(".tab").forEach(b => b.addEventListener("click", () => switchTab(b.dataset.tab)));
+document.querySelectorAll(".period-btn").forEach(b => b.addEventListener("click", () => {
+  currentPeriod = parseInt(b.dataset.period, 10);
+  document.querySelectorAll(".period-btn").forEach(x => x.classList.toggle("active", x === b));
+  loadPerformance(currentPeriod);
+}));
+document.getElementById("aud-search").addEventListener("input", renderAudiences);
+document.getElementById("aud-category-filter").addEventListener("change", renderAudiences);
+
+// ========== INIT ==========
+async function fetchSegmentCount(id) {
+  // Cada segmento tem seu próprio orçamento de 25s na Edge Function
+  try {
+    const r = await fetch("/api/segment-count?id=" + encodeURIComponent(id));
+    if (!r.ok) return null;
+    const j = await r.json();
+    return typeof j.count === "number" ? j.count : null;
+  } catch (e) {
+    console.warn("segment-count failed for", id, e.message);
+    return null;
+  }
+}
+
+// Botão "Carregar" em audiências para segmentos não-featured
+window.loadOneSegmentCount = async function(id, btn) {
+  if (btn) { btn.disabled = true; btn.textContent = "Carregando…"; }
+  const count = await fetchSegmentCount(id);
+  appData.keySegmentCounts = appData.keySegmentCounts || {};
+  appData.keySegmentCounts[id] = count;
+  renderAudiences();
+};
+
+async function loadKeySegmentCounts() {
+  // Stagger 200ms entre launches pra não estourar o burst limit do Klaviyo (5.8 req/s)
+  const featured = appData.featuredSegments || [];
+  const ids = featured.map(s => s.id);
+  appData.keySegmentCounts = appData.keySegmentCounts || {};
+
+  const promises = ids.map((id, i) => new Promise(resolve => {
+    setTimeout(async () => {
+      const count = await fetchSegmentCount(id);
+      appData.keySegmentCounts[id] = count;
+      try { renderBaseKpis(); } catch (_) {}
+      try { renderAllSections(); } catch (_) {}
+      resolve();
+    }, i * 200);
+  }));
+
+  await Promise.all(promises);
+  try { await renderDiagram(appData.keySegmentCounts); } catch (_) {}
+}
+
+async function init() {
+  try {
+    const res = await fetch("/api/data");
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    appData = await res.json();
+    if (appData.error) throw new Error(appData.error);
+    flowsById = {};
+    (appData.flows || []).forEach(f => flowsById[f.id] = f);
+    appData.keySegmentCounts = appData.keySegmentCounts || {}; // start empty
+    renderRevenueKpis();
+    renderLtvKpis();
+    renderBaseKpis();
+    renderFlowKpis();
+    await renderDiagram(appData.keySegmentCounts);
+    renderAllSections();
+    // Disparar segment counts em paralelo (não bloqueia render inicial)
+    loadKeySegmentCounts();
+  } catch (e) {
+    document.getElementById("error-banner").innerHTML = '<div class="error-banner">⚠️ Erro ao carregar dados: ' + escapeHtml(e.message) + '<br><small>Verifique se KLAVIYO_API_KEY está configurada nas env vars do Vercel.</small></div>';
+  }
+}
+init();
+</script>
+</body>
+</html>
