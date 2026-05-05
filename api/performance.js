@@ -1,30 +1,50 @@
 // Vercel Edge Function — busca performance dos flows para um período (7/14/28d).
 // Endpoint: /api/performance?days=28
-// Retorna current period + previous period agregados por flow_id.
+// Klaviyo flow-values-reports tem rate limit agressivo. Strategy:
+//  - Batches de 4 flows
+//  - Retry com Retry-After header em 429
+//  - Sequencial (current depois previous) para não compor throttle
 
 export const config = { runtime: "edge" };
 
 const KLAVIYO_BASE = "https://a.klaviyo.com/api";
 const REVISION = "2024-10-15";
 const PLACED_ORDER_METRIC_ID = "RWb2qv";
+const BATCH_SIZE = 4;
+const MAX_ATTEMPTS = 6;
 
-async function klaviyoFetch(path, opts = {}) {
+async function klaviyoFetchWithRetry(path, opts = {}) {
   const apiKey = process.env.KLAVIYO_API_KEY;
   if (!apiKey) throw new Error("KLAVIYO_API_KEY env var não configurada");
-  const res = await fetch(KLAVIYO_BASE + path, {
-    ...opts,
-    headers: {
-      "Authorization": "Klaviyo-API-Key " + apiKey,
-      "accept": "application/json",
-      "revision": REVISION,
-      ...(opts.headers || {})
+  let lastRes = null;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    const res = await fetch(KLAVIYO_BASE + path, {
+      ...opts,
+      headers: {
+        "Authorization": "Klaviyo-API-Key " + apiKey,
+        "accept": "application/json",
+        "revision": REVISION,
+        ...(opts.headers || {})
+      }
+    });
+    if (res.ok) return await res.json();
+    if (res.status !== 429) {
+      const text = await res.text();
+      throw new Error("Klaviyo " + res.status + ": " + text.slice(0, 200));
     }
-  });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error("Klaviyo " + res.status + ": " + text.slice(0, 300));
+    // 429: respect Retry-After (capped at 10s pra não estourar Edge timeout)
+    const retryAfter = parseInt(res.headers.get("Retry-After") || "0", 10);
+    let waitMs = retryAfter > 0 ? Math.min(retryAfter * 1000, 10000) : Math.min(1000 * Math.pow(2, attempt - 1), 8000);
+    lastRes = res;
+    if (attempt < MAX_ATTEMPTS) {
+      await new Promise(r => setTimeout(r, waitMs));
+    }
   }
-  return await res.json();
+  if (lastRes) {
+    const text = await lastRes.text();
+    throw new Error("Klaviyo 429 after " + MAX_ATTEMPTS + " retries: " + text.slice(0, 200));
+  }
+  throw new Error("Klaviyo unreachable");
 }
 
 function periodRange(days, offset) {
@@ -39,7 +59,7 @@ async function fetchLiveFlows() {
   let url = "/flows?fields[flow]=name,status&filter=and(equals(archived,false),equals(status,%22live%22))&page[size]=50";
   let safety = 5;
   while (url && safety-- > 0) {
-    const j = await klaviyoFetch(url.replace(KLAVIYO_BASE, ""));
+    const j = await klaviyoFetchWithRetry(url.replace(KLAVIYO_BASE, ""));
     (j.data || []).forEach(f => all.push({ id: f.id, name: f.attributes && f.attributes.name }));
     url = j.links && j.links.next ? j.links.next.replace(KLAVIYO_BASE, "") : null;
   }
@@ -47,7 +67,6 @@ async function fetchLiveFlows() {
 }
 
 async function fetchFlowReportBatch(timeframe, flowIds) {
-  // Klaviyo flow-values-reports: timeframe expects { start, end } ISO format
   const body = {
     data: {
       type: "flow-values-report",
@@ -59,7 +78,7 @@ async function fetchFlowReportBatch(timeframe, flowIds) {
       }
     }
   };
-  return await klaviyoFetch("/flow-values-reports", {
+  return await klaviyoFetchWithRetry("/flow-values-reports", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body)
@@ -67,7 +86,6 @@ async function fetchFlowReportBatch(timeframe, flowIds) {
 }
 
 function aggregate(payload, flowsById) {
-  // Klaviyo retorna data.attributes.results (não flow_aggregation!)
   const map = {};
   const results = payload && payload.data && payload.data.attributes && payload.data.attributes.results || [];
   results.forEach(r => {
@@ -93,11 +111,11 @@ function aggregate(payload, flowsById) {
 }
 
 async function fetchFlowReportFull(timeframe, liveFlows) {
-  const BATCH_SIZE = 8;
   const flowsById = Object.fromEntries(liveFlows.map(f => [f.id, f]));
   const liveIds = liveFlows.map(f => f.id);
   const all = {};
   const errors = [];
+  // Sequencial: cada batch espera o anterior
   for (let i = 0; i < liveIds.length; i += BATCH_SIZE) {
     const batch = liveIds.slice(i, i + BATCH_SIZE);
     try {
@@ -124,10 +142,9 @@ export default async function handler(req) {
     const cur = periodRange(days, 0);
     const prev = periodRange(days, days);
 
-    const [curRes, prevRes] = await Promise.all([
-      fetchFlowReportFull(cur, liveFlows),
-      fetchFlowReportFull(prev, liveFlows)
-    ]);
+    // Sequencial: current primeiro, depois previous
+    const curRes = await fetchFlowReportFull(cur, liveFlows);
+    const prevRes = await fetchFlowReportFull(prev, liveFlows);
 
     return new Response(JSON.stringify({
       fetchedAt: new Date().toISOString(),
