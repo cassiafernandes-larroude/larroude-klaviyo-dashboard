@@ -1,10 +1,9 @@
 // Vercel Edge Function — busca dados do Klaviyo e retorna JSON consolidado.
-// Inclui LTV windows: 12M, 6M, 3M (revenue/orders/uniques) — frontend calcula forecast 3M.
+// Otimização: UMA chamada metric-aggregates de 365 dias com interval=month
+//   retorna 12 buckets mensais. Derivamos 3M/6M/12M em JS sem mais chamadas.
 // NÃO inclui mais profile_count dos segmentos featured — esses são buscados
-// individualmente pelo frontend via /api/segment-count?id=XXX.
+//   individualmente pelo frontend via /api/segment-count?id=XXX.
 // Cache de 24h via Cache-Control.
-//
-// Env var necessária: KLAVIYO_API_KEY
 
 export const config = { runtime: "edge" };
 
@@ -95,10 +94,10 @@ async function fetchAllSegments() {
   return all;
 }
 
-async function fetchPlacedOrderWindow(days) {
-  // Aggregates Placed Order over last N days. Returns { revenue, orders, uniqueBuyerMonths, days }
+async function fetchPlacedOrder12M() {
+  // UMA chamada de 365 dias com interval=month → 12 buckets. Derivamos windows depois.
   const end = new Date();
-  const start = new Date(end.getTime() - days * 86400000);
+  const start = new Date(end.getTime() - 365 * 86400000);
   const body = {
     data: {
       type: "metric-aggregate",
@@ -120,53 +119,66 @@ async function fetchPlacedOrderWindow(days) {
     });
     const m = j.data && j.data.attributes && j.data.attributes.data && j.data.attributes.data[0] && j.data.attributes.data[0].measurements;
     if (!m) return null;
-    const sum = arr => (arr || []).reduce((a, b) => a + (b || 0), 0);
-    const revenue = sum(m.sum_value);
-    const orders = sum(m.count);
-    const uniqueBuyerMonths = sum(m.unique);
     return {
-      days,
-      revenue,
-      orders,
-      uniqueBuyerMonths,
-      aov: orders > 0 ? revenue / orders : 0,
-      ltv: uniqueBuyerMonths > 0 ? revenue / uniqueBuyerMonths : 0,
-      monthlyRevenue: m.sum_value || [],
-      monthlyOrders: m.count || [],
-      monthlyUniques: m.unique || []
+      revenue: m.sum_value || [],
+      orders: m.count || [],
+      uniques: m.unique || []
     };
   } catch (e) {
-    console.warn("metric_aggregate failed for " + days + "d:", e.message);
+    console.warn("metric_aggregate failed:", e.message);
     return null;
   }
 }
 
+function aggregateWindow(monthly, monthsBack, days) {
+  // monthly = { revenue: [m1, m2, ..., m12], orders, uniques }
+  // monthsBack = quantos meses do final pegar (ex: 3 para últimos 3 meses)
+  const sliceFrom = m => (m || []).slice(-monthsBack);
+  const sum = arr => arr.reduce((a, b) => a + (b || 0), 0);
+  const revenue = sum(sliceFrom(monthly.revenue));
+  const orders = sum(sliceFrom(monthly.orders));
+  const uniques = sum(sliceFrom(monthly.uniques));
+  return {
+    days,
+    revenue,
+    orders,
+    uniqueBuyerMonths: uniques,
+    aov: orders > 0 ? revenue / orders : 0,
+    ltv: uniques > 0 ? revenue / uniques : 0,
+    monthlyRevenue: sliceFrom(monthly.revenue),
+    monthlyOrders: sliceFrom(monthly.orders),
+    monthlyUniques: sliceFrom(monthly.uniques)
+  };
+}
+
 export default async function handler(req) {
   try {
-    // Múltiplas janelas de revenue + base info em paralelo
-    const [account, flows, allSegments, rev3M, rev6M, rev12M] = await Promise.all([
+    // Tudo em paralelo, mas só UMA chamada metric-aggregates (365d)
+    const [account, flows, allSegments, monthly] = await Promise.all([
       fetchAccount(),
       fetchAllFlows(),
       fetchAllSegments(),
-      fetchPlacedOrderWindow(90),
-      fetchPlacedOrderWindow(180),
-      fetchPlacedOrderWindow(365)
+      fetchPlacedOrder12M()
     ]);
 
-    // Forecast 3M = média mensal trailing 12M × 3
-    let forecast3M = null;
-    if (rev12M && rev12M.uniqueBuyerMonths > 0) {
-      const avgMonthlyRevenue = rev12M.revenue / 12;
-      const avgMonthlyUniques = rev12M.uniqueBuyerMonths / 12;
-      const projectedRevenue = avgMonthlyRevenue * 3;
-      const projectedUniques = avgMonthlyUniques * 3;
-      forecast3M = {
-        days: 90,
-        revenue: projectedRevenue,
-        uniqueBuyerMonths: projectedUniques,
-        ltv: projectedUniques > 0 ? projectedRevenue / projectedUniques : 0,
-        method: "trailing_12m_average × 3"
-      };
+    let l3m = null, l6m = null, l12m = null, forecast3M = null;
+    if (monthly) {
+      l3m = aggregateWindow(monthly, 3, 90);
+      l6m = aggregateWindow(monthly, 6, 180);
+      l12m = aggregateWindow(monthly, 12, 365);
+
+      // Forecast 3M = média mensal trailing 12M × 3
+      if (l12m.uniqueBuyerMonths > 0) {
+        const avgRev = l12m.revenue / 12;
+        const avgUni = l12m.uniqueBuyerMonths / 12;
+        forecast3M = {
+          days: 90,
+          revenue: avgRev * 3,
+          uniqueBuyerMonths: avgUni * 3,
+          ltv: avgUni > 0 ? avgRev / avgUni : 0,
+          method: "trailing_12m_average × 3"
+        };
+      }
     }
 
     const data = {
@@ -175,13 +187,8 @@ export default async function handler(req) {
       flows,
       allSegments,
       featuredSegments: FEATURED_SEGMENTS,
-      revenue: rev3M, // backward compat: revenue = 3 meses
-      ltvWindows: {
-        l3m: rev3M,
-        l6m: rev6M,
-        l12m: rev12M,
-        forecast3m: forecast3M
-      }
+      revenue: l3m, // backward compat
+      ltvWindows: { l3m, l6m, l12m, forecast3m: forecast3M }
     };
 
     return new Response(JSON.stringify(data), {
