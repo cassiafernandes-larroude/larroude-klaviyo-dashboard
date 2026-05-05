@@ -107,12 +107,11 @@ async function fetchSegmentCount(segmentId) {
 }
 
 async function fetchKeySegmentCounts() {
-  // Serializado para evitar rate limit + bug de race condition
-  const counts = {};
-  for (const id of KEY_SEGMENT_IDS) {
-    counts[id] = await fetchSegmentCount(id);
-  }
-  return counts;
+  // Paralelo no server-side é seguro — sem bug de race do MCP, e cabe no timeout 25s da Edge Hobby
+  const entries = await Promise.all(KEY_SEGMENT_IDS.map(id =>
+    fetchSegmentCount(id).then(c => [id, c])
+  ));
+  return Object.fromEntries(entries);
 }
 
 async function fetchPlacedOrderL3M() {
@@ -187,7 +186,4 @@ export default async function handler(req) {
   } catch (e) {
     return new Response(JSON.stringify({ error: e.message || String(e) }), {
       status: 500,
-      headers: { "content-type": "application/json" }
-    });
-  }
-}
+    
