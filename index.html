@@ -629,20 +629,47 @@ function renderAudiences() {
   }
 }
 
-// ========== PERFORMANCE ==========
-async function loadPerformance(days) {
-  if (performanceCache[days]) return renderPerformance(days);
-  document.getElementById("perf-tbody").innerHTML = '<tr><td colspan="7" class="empty" style="text-align:center">Carregando ~10-15s…</td></tr>';
+// ========== PERFORMANCE (per-flow endpoint) ==========
+async function fetchOneFlowPerf(id, days) {
   try {
-    const res = await fetch("/api/performance?days=" + days);
-    if (!res.ok) throw new Error("HTTP " + res.status);
-    const data = await res.json();
-    if (data.error) throw new Error(data.error);
-    performanceCache[days] = data;
-    renderPerformance(days);
+    const r = await fetch("/api/flow-perf?id=" + encodeURIComponent(id) + "&days=" + days);
+    if (!r.ok) return { id, current: null, previous: null, error: "HTTP " + r.status };
+    const j = await r.json();
+    return j;
   } catch (e) {
-    document.getElementById("perf-tbody").innerHTML = '<tr><td colspan="7" class="empty" style="text-align:center;color:#8c2c2c">Erro: ' + escapeHtml(e.message) + '</td></tr>';
+    return { id, current: null, previous: null, error: e.message };
   }
+}
+
+async function loadPerformance(days) {
+  if (performanceCache[days] && performanceCache[days]._complete) return renderPerformance(days);
+
+  const liveFlows = (appData.flows || []).filter(f => f.status === "live");
+  if (liveFlows.length === 0) {
+    document.getElementById("perf-tbody").innerHTML = '<tr><td colspan="7" class="empty" style="text-align:center">Nenhum flow live.</td></tr>';
+    return;
+  }
+
+  // Inicializa cache esqueleto
+  performanceCache[days] = performanceCache[days] || { current: {}, previous: {}, days, _complete: false };
+  document.getElementById("perf-tbody").innerHTML = '<tr><td colspan="7" class="empty" style="text-align:center">Carregando flows um a um (~10s)…</td></tr>';
+
+  // Dispara N fetches em paralelo com stagger 200ms
+  const promises = liveFlows.map((flow, i) => new Promise(resolve => {
+    setTimeout(async () => {
+      const j = await fetchOneFlowPerf(flow.id, days);
+      const cache = performanceCache[days];
+      if (j.current) cache.current[flow.id] = { ...j.current, flow_id: flow.id, flow_name: flow.name, status: flow.status };
+      if (j.previous) cache.previous[flow.id] = { ...j.previous, flow_id: flow.id, flow_name: flow.name };
+      // Re-render incremental
+      renderPerformance(days);
+      resolve();
+    }, i * 200);
+  }));
+
+  await Promise.all(promises);
+  performanceCache[days]._complete = true;
+  renderPerformance(days);
 }
 
 function diagnose(curr, prev) {
