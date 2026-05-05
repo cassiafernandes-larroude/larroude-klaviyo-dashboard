@@ -386,7 +386,11 @@ mermaid.initialize({
 window.scrollToCard = function(cardId) {
   const el = document.getElementById(cardId);
   if (!el) return;
-  el.scrollIntoView({ behavior: "smooth", block: "start" });
+  const targetY = el.getBoundingClientRect().top + window.scrollY - 20;
+  // Fallback robusto: scroll smooth + instant via window.scrollTo
+  try { el.scrollIntoView({ behavior: "smooth", block: "start" }); } catch (_) {}
+  setTimeout(() => { window.scrollTo({ top: targetY, behavior: "smooth" }); }, 50);
+  setTimeout(() => { if (Math.abs(window.scrollY - targetY) > 100) window.scrollTo(0, targetY); }, 800);
   el.classList.add("highlight-pulse");
   setTimeout(() => el.classList.remove("highlight-pulse"), 1600);
 };
@@ -813,7 +817,7 @@ function switchTab(name) {
   document.querySelectorAll(".tab").forEach(b => b.classList.toggle("active", b.dataset.tab === name));
   document.querySelectorAll(".tab-content").forEach(c => c.classList.toggle("active", c.dataset.tabContent === name));
   if (name === "performance" && !performanceCache[currentPeriod]) loadPerformance(currentPeriod);
-  if (name === "audiences") renderAudiences();
+  if (name === "audiences") { renderAudiences(); loadAllSegmentCounts(); }
   if (name === "conflicts") renderConflicts();
   if (name === "opportunities") renderOpportunities();
 }
@@ -848,6 +852,24 @@ window.loadOneSegmentCount = async function(id, btn) {
   appData.keySegmentCounts[id] = count;
   renderAudiences();
 };
+
+let __allSegmentsLoaded = false;
+async function loadAllSegmentCounts() {
+  if (__allSegmentsLoaded) return;
+  __allSegmentsLoaded = true;
+  const segs = (appData.allSegments || []);
+  appData.keySegmentCounts = appData.keySegmentCounts || {};
+  // Carrega só os que ainda não têm count, com stagger 250ms
+  const toFetch = segs.filter(s => !(s.id in appData.keySegmentCounts));
+  for (let i = 0; i < toFetch.length; i++) {
+    const s = toFetch[i];
+    setTimeout(async () => {
+      const count = await fetchSegmentCount(s.id);
+      appData.keySegmentCounts[s.id] = count;
+      try { renderAudiences(); } catch (_) {}
+    }, i * 250);
+  }
+}
 
 async function loadKeySegmentCounts() {
   // Stagger 200ms entre launches pra não estourar o burst limit do Klaviyo (5.8 req/s)
