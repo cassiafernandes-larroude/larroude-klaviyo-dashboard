@@ -1,18 +1,29 @@
-// Vercel Edge Function — busca performance de UM flow específico para current + previous period.
-// Endpoint: /api/flow-perf?id=FLOW_ID&days=7|14|28
-// Cada chamada tem seu próprio orçamento de 25s, com retry em 429.
-// Cache de 24h por (flow, days).
+// Vercel Edge Function — busca performance de UM flow específico (current + previous period).
+// Suporta ?account=us|br&id=FLOW_ID&days=7|14|28.
 
 export const config = { runtime: "edge" };
 
 const KLAVIYO_BASE = "https://a.klaviyo.com/api";
 const REVISION = "2024-10-15";
-const PLACED_ORDER_METRIC_ID = "RWb2qv";
 const MAX_ATTEMPTS = 6;
 
-async function klaviyoFetchWithRetry(path, opts = {}) {
-  const apiKey = process.env.KLAVIYO_API_KEY;
-  if (!apiKey) throw new Error("KLAVIYO_API_KEY env var não configurada");
+function getApiKey(account) {
+  if (account === "br") return process.env.KLAVIYO_API_KEY_BR;
+  return process.env.KLAVIYO_API_KEY_US || process.env.KLAVIYO_API_KEY;
+}
+
+async function findPlacedOrderMetricId(apiKey) {
+  try {
+    const r = await fetch(KLAVIYO_BASE + "/metrics?fields[metric]=name&filter=equals(name,\"Placed Order\")&page[size]=10", {
+      headers: { "Authorization": "Klaviyo-API-Key " + apiKey, "accept": "application/json", "revision": REVISION }
+    });
+    if (!r.ok) return null;
+    const j = await r.json();
+    return j.data && j.data[0] ? j.data[0].id : null;
+  } catch (_) { return null; }
+}
+
+async function klaviyoFetchWithRetry(apiKey, path, opts = {}) {
   let last = null;
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     const res = await fetch(KLAVIYO_BASE + path, {
@@ -48,19 +59,19 @@ function periodRange(days, offset) {
   return { start: fmt(start), end: fmt(end) };
 }
 
-async function fetchFlowReport(timeframe, flowId) {
+async function fetchFlowReport(apiKey, metricId, timeframe, flowId) {
   const body = {
     data: {
       type: "flow-values-report",
       attributes: {
         statistics: ["recipients", "delivered", "opens_unique", "clicks_unique", "conversion_uniques", "open_rate", "click_rate", "conversion_rate", "conversion_value"],
         timeframe: { start: timeframe.start, end: timeframe.end },
-        conversion_metric_id: PLACED_ORDER_METRIC_ID,
+        conversion_metric_id: metricId,
         filter: "and(equals(send_channel,\"email\"),equals(flow_id,\"" + flowId + "\"))"
       }
     }
   };
-  const j = await klaviyoFetchWithRetry("/flow-values-reports", {
+  const j = await klaviyoFetchWithRetry(apiKey, "/flow-values-reports", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body)
@@ -69,15 +80,10 @@ async function fetchFlowReport(timeframe, flowId) {
   if (results.length === 0) return null;
   const s = results[0].statistics || {};
   return {
-    recipients: s.recipients || 0,
-    delivered: s.delivered || 0,
-    opens: s.opens_unique || 0,
-    clicks: s.clicks_unique || 0,
-    conversions: s.conversion_uniques || 0,
-    revenue: s.conversion_value || 0,
-    openRate: s.open_rate || 0,
-    clickRate: s.click_rate || 0,
-    conversionRate: s.conversion_rate || 0
+    recipients: s.recipients || 0, delivered: s.delivered || 0,
+    opens: s.opens_unique || 0, clicks: s.clicks_unique || 0,
+    conversions: s.conversion_uniques || 0, revenue: s.conversion_value || 0,
+    openRate: s.open_rate || 0, clickRate: s.click_rate || 0, conversionRate: s.conversion_rate || 0
   };
 }
 
@@ -85,30 +91,39 @@ export default async function handler(req) {
   const url = new URL(req.url);
   const id = url.searchParams.get("id");
   const days = parseInt(url.searchParams.get("days") || "28", 10);
+  const account = (url.searchParams.get("account") || "us").toLowerCase();
 
   if (!id || !/^[A-Za-z0-9]+$/.test(id)) {
     return new Response(JSON.stringify({ error: "missing or invalid id" }), { status: 400, headers: { "content-type": "application/json" } });
   }
   if (![7, 14, 28].includes(days)) {
-    return new Response(JSON.stringify({ error: "days must be 7, 14, or 28" }), { status: 400, headers: { "content-type": "application/json" } });
+    return new Response(JSON.stringify({ error: "days deve ser 7, 14 ou 28" }), { status: 400, headers: { "content-type": "application/json" } });
+  }
+  if (account !== "us" && account !== "br") {
+    return new Response(JSON.stringify({ error: "account inválida" }), { status: 400, headers: { "content-type": "application/json" } });
+  }
+  const apiKey = getApiKey(account);
+  if (!apiKey) {
+    return new Response(JSON.stringify({ error: "KLAVIYO_API_KEY_" + account.toUpperCase() + " não configurada" }), { status: 500, headers: { "content-type": "application/json" } });
   }
 
   try {
+    const metricId = await findPlacedOrderMetricId(apiKey);
+    if (!metricId) {
+      return new Response(JSON.stringify({ flow_id: id, account, current: null, previous: null, error: "Placed Order metric não encontrado", fetchedAt: new Date().toISOString() }), {
+        status: 200, headers: { "content-type": "application/json", "cache-control": "public, s-maxage=300" }
+      });
+    }
     const cur = periodRange(days, 0);
     const prev = periodRange(days, days);
-
     const [current, previous] = await Promise.all([
-      fetchFlowReport(cur, id),
-      fetchFlowReport(prev, id)
+      fetchFlowReport(apiKey, metricId, cur, id),
+      fetchFlowReport(apiKey, metricId, prev, id)
     ]);
-
     return new Response(JSON.stringify({
-      flow_id: id,
-      days,
-      currentPeriod: cur,
-      previousPeriod: prev,
-      current,
-      previous,
+      flow_id: id, account, days,
+      currentPeriod: cur, previousPeriod: prev,
+      current, previous,
       fetchedAt: new Date().toISOString()
     }), {
       status: 200,
@@ -118,19 +133,8 @@ export default async function handler(req) {
       }
     });
   } catch (e) {
-    return new Response(JSON.stringify({
-      flow_id: id,
-      days,
-      current: null,
-      previous: null,
-      error: e.message || String(e),
-      fetchedAt: new Date().toISOString()
-    }), {
-      status: 200,
-      headers: {
-        "content-type": "application/json",
-        "cache-control": "public, s-maxage=60"
-      }
+    return new Response(JSON.stringify({ flow_id: id, account, days, current: null, previous: null, error: e.message, fetchedAt: new Date().toISOString() }), {
+      status: 200, headers: { "content-type": "application/json", "cache-control": "public, s-maxage=60" }
     });
   }
 }

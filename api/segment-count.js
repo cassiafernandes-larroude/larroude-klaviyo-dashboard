@@ -1,38 +1,32 @@
 // Vercel Edge Function — busca profile_count de UM segmento.
-// Cada segmento tem seu próprio orçamento de 25s, sem competir com outros fetches.
-// Inclui retry com backoff em caso de 429 (rate limit do Klaviyo).
-// Cache de 24h por segmento (s-maxage=86400).
-//
-// Uso: GET /api/segment-count?id=XF8f94
-// Resposta: { id, name, count, fetchedAt } ou { id, count: null, error }
-//
-// Env var: KLAVIYO_API_KEY
+// Suporta ?account=us|br. Cache 7 dias por (account, id).
 
 export const config = { runtime: "edge" };
 
 const KLAVIYO_BASE = "https://a.klaviyo.com/api";
 const REVISION = "2024-10-15";
 
+function getApiKey(account) {
+  if (account === "br") return process.env.KLAVIYO_API_KEY_BR;
+  return process.env.KLAVIYO_API_KEY_US || process.env.KLAVIYO_API_KEY;
+}
+
 export default async function handler(req) {
   const url = new URL(req.url);
   const id = url.searchParams.get("id");
+  const account = (url.searchParams.get("account") || "us").toLowerCase();
 
   if (!id || !/^[A-Za-z0-9]+$/.test(id)) {
-    return new Response(JSON.stringify({ error: "missing or invalid id param" }), {
-      status: 400,
-      headers: { "content-type": "application/json" }
-    });
+    return new Response(JSON.stringify({ error: "missing or invalid id" }), { status: 400, headers: { "content-type": "application/json" } });
   }
-
-  const apiKey = process.env.KLAVIYO_API_KEY;
+  if (account !== "us" && account !== "br") {
+    return new Response(JSON.stringify({ error: "account inválida" }), { status: 400, headers: { "content-type": "application/json" } });
+  }
+  const apiKey = getApiKey(account);
   if (!apiKey) {
-    return new Response(JSON.stringify({ error: "KLAVIYO_API_KEY not configured" }), {
-      status: 500,
-      headers: { "content-type": "application/json" }
-    });
+    return new Response(JSON.stringify({ error: "KLAVIYO_API_KEY_" + account.toUpperCase() + " não configurada" }), { status: 500, headers: { "content-type": "application/json" } });
   }
 
-  // Retry com backoff em caso de 429 (rate limit do Klaviyo)
   async function fetchWithRetry(maxAttempts) {
     let last = null;
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -51,64 +45,35 @@ export default async function handler(req) {
       const retryAfter = parseInt(res.headers.get("Retry-After") || "0", 10);
       const waitMs = retryAfter > 0 ? retryAfter * 1000 : Math.min(1000 * Math.pow(2, attempt - 1), 8000);
       last = res;
-      if (attempt < maxAttempts) {
-        await new Promise(r => setTimeout(r, waitMs));
-      }
+      if (attempt < maxAttempts) await new Promise(r => setTimeout(r, waitMs));
     }
     return last;
   }
 
   try {
     const res = await fetchWithRetry(8);
-
     if (!res || !res.ok) {
       const text = res ? await res.text() : "no response";
       return new Response(JSON.stringify({
-        id,
-        count: null,
+        id, account, count: null,
         error: "Klaviyo " + (res ? res.status : "?") + ": " + text.slice(0, 200),
         fetchedAt: new Date().toISOString()
-      }), {
-        status: 200,
-        headers: {
-          "content-type": "application/json",
-          "cache-control": "public, s-maxage=300"
-        }
-      });
+      }), { status: 200, headers: { "content-type": "application/json", "cache-control": "public, s-maxage=300" } });
     }
-
     const j = await res.json();
-    const count = j.data && j.data.attributes && typeof j.data.attributes.profile_count === "number"
-      ? j.data.attributes.profile_count
-      : null;
+    const count = j.data && j.data.attributes && typeof j.data.attributes.profile_count === "number" ? j.data.attributes.profile_count : null;
     const name = j.data && j.data.attributes && j.data.attributes.name;
-
-    return new Response(JSON.stringify({
-      id,
-      name,
-      count,
-      fetchedAt: new Date().toISOString()
-    }), {
+    return new Response(JSON.stringify({ id, account, name, count, fetchedAt: new Date().toISOString() }), {
       status: 200,
       headers: {
         "content-type": "application/json",
-        "cache-control": count !== null
-          ? "public, s-maxage=604800, stale-while-revalidate=86400"
-          : "public, s-maxage=300"
+        "cache-control": count !== null ? "public, s-maxage=604800, stale-while-revalidate=86400" : "public, s-maxage=300"
       }
     });
   } catch (e) {
-    return new Response(JSON.stringify({
-      id,
-      count: null,
-      error: e.message || String(e),
-      fetchedAt: new Date().toISOString()
-    }), {
+    return new Response(JSON.stringify({ id, account, count: null, error: e.message, fetchedAt: new Date().toISOString() }), {
       status: 200,
-      headers: {
-        "content-type": "application/json",
-        "cache-control": "public, s-maxage=60"
-      }
+      headers: { "content-type": "application/json", "cache-control": "public, s-maxage=60" }
     });
   }
 }
