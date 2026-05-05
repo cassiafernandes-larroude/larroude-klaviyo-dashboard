@@ -701,6 +701,38 @@ document.getElementById("aud-search").addEventListener("input", renderAudiences)
 document.getElementById("aud-category-filter").addEventListener("change", renderAudiences);
 
 // ========== INIT ==========
+async function fetchSegmentCount(id) {
+  // Cada segmento tem seu próprio orçamento de 25s na Edge Function
+  try {
+    const r = await fetch("/api/segment-count?id=" + encodeURIComponent(id));
+    if (!r.ok) return null;
+    const j = await r.json();
+    return typeof j.count === "number" ? j.count : null;
+  } catch (e) {
+    console.warn("segment-count failed for", id, e.message);
+    return null;
+  }
+}
+
+async function loadKeySegmentCounts() {
+  // Dispara as 9 chamadas em paralelo. Cada uma tem seu próprio Edge function (25s budget).
+  const featured = appData.featuredSegments || [];
+  const ids = featured.map(s => s.id);
+  appData.keySegmentCounts = appData.keySegmentCounts || {};
+
+  // Fire all in parallel — cards/KPIs atualizam progressivamente, diagram só no final
+  await Promise.all(ids.map(async (id) => {
+    const count = await fetchSegmentCount(id);
+    appData.keySegmentCounts[id] = count;
+    // Re-render KPIs e cards (não-mermaid) à medida que responde
+    try { renderBaseKpis(); } catch (_) {}
+    try { renderAllSections(); } catch (_) {}
+  }));
+
+  // Re-render do mermaid uma única vez no final pra evitar concorrência de renders
+  try { await renderDiagram(appData.keySegmentCounts); } catch (_) {}
+}
+
 async function init() {
   try {
     const res = await fetch("/api/data");
@@ -709,11 +741,14 @@ async function init() {
     if (appData.error) throw new Error(appData.error);
     flowsById = {};
     (appData.flows || []).forEach(f => flowsById[f.id] = f);
+    appData.keySegmentCounts = appData.keySegmentCounts || {}; // start empty
     renderRevenueKpis();
     renderBaseKpis();
     renderFlowKpis();
-    await renderDiagram(appData.keySegmentCounts || {});
+    await renderDiagram(appData.keySegmentCounts);
     renderAllSections();
+    // Disparar segment counts em paralelo (não bloqueia render inicial)
+    loadKeySegmentCounts();
   } catch (e) {
     document.getElementById("error-banner").innerHTML = '<div class="error-banner">⚠️ Erro ao carregar dados: ' + escapeHtml(e.message) + '<br><small>Verifique se KLAVIYO_API_KEY está configurada nas env vars do Vercel.</small></div>';
   }
