@@ -268,6 +268,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Ar
       </div>
     </div>
     <div class="card-desc">Δ% mostra crescimento ou queda vs período anterior. Diagnóstico automático abaixo de cada flow.</div>
+    <div id="perf-progress" style="margin-top:10px;padding:8px 12px;background:#f7f1ea;border-radius:6px;font-size:12px;color:#4a4239"></div>
     <div style="overflow-x:auto;margin-top:14px">
       <table class="perf-table">
         <thead><tr><th>Flow</th><th>Status</th><th class="num">Recipients</th><th class="num">Open Rate</th><th class="num">Click Rate</th><th class="num">CVR</th><th class="num">Revenue</th></tr></thead>
@@ -680,18 +681,7 @@ function renderAudiences() {
   }
 }
 
-// ========== PERFORMANCE (per-flow endpoint) ==========
-async function fetchOneFlowPerf(id, days) {
-  try {
-    const r = await fetch(withAccount("/api/flow-perf?id=" + encodeURIComponent(id) + "&days=" + days));
-    if (!r.ok) return { id, current: null, previous: null, error: "HTTP " + r.status };
-    const j = await r.json();
-    return j;
-  } catch (e) {
-    return { id, current: null, previous: null, error: e.message };
-  }
-}
-
+// ========== PERFORMANCE (1 chamada batched para todos flows) ==========
 async function loadPerformance(days) {
   if (performanceCache[days] && performanceCache[days]._complete) return renderPerformance(days);
 
@@ -701,26 +691,40 @@ async function loadPerformance(days) {
     return;
   }
 
-  // Inicializa cache esqueleto
+  // Mostra placeholders e progresso
   performanceCache[days] = performanceCache[days] || { current: {}, previous: {}, days, _complete: false };
-  document.getElementById("perf-tbody").innerHTML = '<tr><td colspan="7" class="empty" style="text-align:center">Carregando flows um a um (~10s)…</td></tr>';
-
-  // Dispara N fetches em paralelo com stagger 200ms
-  const promises = liveFlows.map((flow, i) => new Promise(resolve => {
-    setTimeout(async () => {
-      const j = await fetchOneFlowPerf(flow.id, days);
-      const cache = performanceCache[days];
-      if (j.current) cache.current[flow.id] = { ...j.current, flow_id: flow.id, flow_name: flow.name, status: flow.status };
-      if (j.previous) cache.previous[flow.id] = { ...j.previous, flow_id: flow.id, flow_name: flow.name };
-      // Re-render incremental
-      renderPerformance(days);
-      resolve();
-    }, i * 1500);
-  }));
-
-  await Promise.all(promises);
-  performanceCache[days]._complete = true;
   renderPerformance(days);
+  const progEl = document.getElementById("perf-progress");
+  if (progEl) progEl.innerHTML = '⏳ Buscando todos ' + liveFlows.length + ' flows do Klaviyo… (~10–25s, depois fica em cache 7 dias)';
+
+  try {
+    const r = await fetch(withAccount("/api/performance?days=" + days));
+    if (!r.ok) {
+      const t = await r.text();
+      if (progEl) progEl.innerHTML = '<span style="color:#c0392b">⚠️ Erro HTTP ' + r.status + ': ' + escapeHtml(t.slice(0,200)) + '</span>';
+      return;
+    }
+    const j = await r.json();
+    if (j.error) {
+      if (progEl) progEl.innerHTML = '<span style="color:#c0392b">⚠️ ' + escapeHtml(j.error) + '</span>';
+      return;
+    }
+    performanceCache[days].current = j.current || {};
+    performanceCache[days].previous = j.previous || {};
+    performanceCache[days]._complete = true;
+    renderPerformance(days);
+
+    const numWithData = Object.keys(j.current || {}).filter(k => k !== "_error").length;
+    if (progEl) {
+      if (j.currentError || j.previousError) {
+        progEl.innerHTML = '<span style="color:#b8860b">⚠️ Carregado parcialmente (' + numWithData + '/' + liveFlows.length + '). Klaviyo: ' + escapeHtml((j.currentError || j.previousError || '').slice(0,150)) + '. Recarregue em 1min.</span>';
+      } else {
+        progEl.innerHTML = '<span style="color:#0d6c4a">✓ ' + numWithData + ' flows carregados · cache 7 dias · fetched ' + fmtDate(j.fetchedAt) + '</span>';
+      }
+    }
+  } catch (e) {
+    if (progEl) progEl.innerHTML = '<span style="color:#c0392b">⚠️ ' + escapeHtml(e.message) + '</span>';
+  }
 }
 
 function diagnose(curr, prev) {
