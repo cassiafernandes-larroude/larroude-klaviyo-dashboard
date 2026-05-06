@@ -363,9 +363,13 @@ const SECTION_GROUPS = {
 const escapeHtml = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
 const fmtNum = n => (n == null || isNaN(n)) ? "—" : Number(n).toLocaleString("pt-BR");
 const CURRENCY_FORMAT = { USD: { symbol: "$", locale: "en-US" }, BRL: { symbol: "R$ ", locale: "pt-BR" }, EUR: { symbol: "€ ", locale: "pt-PT" } };
+const ACCOUNT_CURRENCY_FALLBACK = { us: "USD", br: "BRL" };
 function fmtCurrency(n) {
   if (n == null || isNaN(n)) return "—";
-  const code = (appData && appData.account && appData.account.currency) || "USD";
+  // Prioridade: 1) currency explícito do Klaviyo, 2) fallback por accountKey, 3) USD default
+  const code = (appData && appData.account && appData.account.currency)
+    || (appData && ACCOUNT_CURRENCY_FALLBACK[appData.accountKey])
+    || "USD";
   const f = CURRENCY_FORMAT[code] || CURRENCY_FORMAT.USD;
   return f.symbol + Number(Math.round(n)).toLocaleString(f.locale);
 }
