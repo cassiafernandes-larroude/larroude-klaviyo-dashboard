@@ -7,7 +7,11 @@ export const config = { runtime: "edge" };
 
 const KLAVIYO_BASE = "https://a.klaviyo.com/api";
 const REVISION = "2024-10-15";
-const MAX_ATTEMPTS = 6;
+const MAX_ATTEMPTS = 4;
+const MAX_WAIT_MS = 4000;
+
+// Metric IDs conhecidos (Placed Order) — pula chamada /metrics
+const KNOWN_METRIC_IDS = { us: "RWb2qv", br: "RG3FHD" };
 
 function getApiKey(account) {
   if (account === "br") return process.env.KLAVIYO_API_KEY_BR;
@@ -32,7 +36,7 @@ async function klaviyoFetchWithRetry(apiKey, path, opts = {}) {
       throw new Error("Klaviyo " + res.status + ": " + text.slice(0, 200));
     }
     const retryAfter = parseInt(res.headers.get("Retry-After") || "0", 10);
-    const waitMs = retryAfter > 0 ? Math.min(retryAfter * 1000, 8000) : Math.min(1000 * Math.pow(2, attempt - 1), 8000);
+    const waitMs = retryAfter > 0 ? Math.min(retryAfter * 1000, MAX_WAIT_MS) : Math.min(1000 * Math.pow(2, attempt - 1), MAX_WAIT_MS);
     lastRes = res;
     if (attempt < MAX_ATTEMPTS) await new Promise(r => setTimeout(r, waitMs));
   }
@@ -130,11 +134,9 @@ export default async function handler(req) {
       return new Response(JSON.stringify({ error: "KLAVIYO_API_KEY_" + account.toUpperCase() + " não configurada" }), { status: 500, headers: { "content-type": "application/json" } });
     }
 
-    // 1. Descobre metric ID + flows live em paralelo
-    const [metricId, liveFlows] = await Promise.all([
-      findPlacedOrderMetricId(apiKey),
-      fetchLiveFlows(apiKey)
-    ]);
+    // 1. Metric ID conhecido + flows live em paralelo (pula /metrics, economiza 5–8s)
+    const metricId = KNOWN_METRIC_IDS[account] || await findPlacedOrderMetricId(apiKey);
+    const liveFlows = await fetchLiveFlows(apiKey);
 
     if (!metricId) {
       return new Response(JSON.stringify({
