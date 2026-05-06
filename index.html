@@ -634,14 +634,48 @@ function renderFlowRow(f) {
   </div>`;
 }
 
-function renderSection(key) {
-  const groups = SECTION_GROUPS[key] || [];
+// Para BR (e qualquer conta sem mapeamento curado de IDs), usa cluster patterns reaproveitados de FLOW_CLUSTERS
+const SECTION_CLUSTER_MAP_BR = {
+  welcome: { titleByCluster: { welcome: "Welcome Series", opensend: "Welcome Opensend / Reconnect" }, clusters: ["welcome", "opensend"] },
+  loop: { clusters: ["browse", "site", "category", "abandoned_cart", "abandoned_checkout", "stock", "price_drop"] },
+  placed: { clusters: ["order_followup"], titleByCluster: { order_followup: "Placed Order / Order Follow Up" } },
+  postPurchase: { clusters: ["review", "cross_sell", "loyalty", "birthday", "ambassador"] },
+  reactivation: { clusters: ["winback", "sunset"] }
+};
+
+function renderSectionFromClusters(key) {
+  const cfg = SECTION_CLUSTER_MAP_BR[key];
+  if (!cfg) return '';
+  const flows = appData.flows || [];
+  const usedFlowIds = new Set();
   let html = "";
-  for (const g of groups) {
-    const flows = (g.flowIds || []).map(id => flowsById[id]).filter(Boolean);
-    html += '<div class="subgroup"><div class="subgroup-head"><div class="subgroup-title">' + g.title + '</div><div class="subgroup-meta">' + flows.length + ' flows</div></div>';
-    html += flows.length === 0 ? '<div class="empty">Nenhum flow.</div>' : flows.map(renderFlowRow).join("");
+  for (const clusterId of cfg.clusters) {
+    const cluster = FLOW_CLUSTERS.find(c => c.id === clusterId);
+    if (!cluster) continue;
+    const matched = flows.filter(f => !usedFlowIds.has(f.id) && cluster.patterns.some(p => p.test(f.name)));
+    matched.forEach(f => usedFlowIds.add(f.id));
+    const title = (cfg.titleByCluster && cfg.titleByCluster[clusterId]) || cluster.label;
+    html += '<div class="subgroup"><div class="subgroup-head"><div class="subgroup-title">' + cluster.icon + ' ' + title + '</div><div class="subgroup-meta">' + matched.length + ' flows</div></div>';
+    html += matched.length === 0 ? '<div class="empty">Nenhum flow.</div>' : matched.map(renderFlowRow).join("");
     html += '</div>';
+  }
+  return html;
+}
+
+function renderSection(key) {
+  // US: usa mapeamento curado de IDs; outras contas: usa pattern matching via FLOW_CLUSTERS
+  let html = "";
+  if (currentAccount === 'us') {
+    const groups = SECTION_GROUPS[key] || [];
+    for (const g of groups) {
+      const flows = (g.flowIds || []).map(id => flowsById[id]).filter(Boolean);
+      html += '<div class="subgroup"><div class="subgroup-head"><div class="subgroup-title">' + g.title + '</div><div class="subgroup-meta">' + flows.length + ' flows</div></div>';
+      html += flows.length === 0 ? '<div class="empty">Nenhum flow.</div>' : flows.map(renderFlowRow).join("");
+      html += '</div>';
+    }
+  } else {
+    html = renderSectionFromClusters(key);
+    if (!html) html = '<div class="empty">Nenhum flow agrupado nesta seção.</div>';
   }
   document.getElementById("content-" + key).innerHTML = html;
 }
@@ -958,6 +992,7 @@ async function loadKeySegmentCounts() {
 }
 
 async function init() {
+  applyAccountUI(); // garante que botão US/BR reflete localStorage no startup
   try {
     const res = await fetch(withAccount("/api/data"));
     if (!res.ok) throw new Error("HTTP " + res.status);
