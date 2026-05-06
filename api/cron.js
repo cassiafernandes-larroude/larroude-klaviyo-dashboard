@@ -9,6 +9,10 @@ const FEATURED_SEGMENT_IDS_US = [
   "TDXDzA", "WGrCjj", "RaXvQd", "Sudqwh"
 ];
 
+const FEATURED_SEGMENT_IDS_BR = [
+  "V7SkpA", "RxfYKt", "SgCgbU", "XcbwM2", "Ta4EnS", "RFyTVT"
+];
+
 export default async function handler(req) {
   const auth = req.headers.get("authorization");
   if (process.env.CRON_SECRET && auth !== "Bearer " + process.env.CRON_SECRET) {
@@ -29,7 +33,7 @@ export default async function handler(req) {
     // 1 chamada batched de performance — pega TODOS flows
     const perfTarget = baseUrl + "/api/performance?days=7&account=" + acct;
 
-    const featuredIds = acct === "us" ? FEATURED_SEGMENT_IDS_US : [];
+    const featuredIds = acct === "us" ? FEATURED_SEGMENT_IDS_US : FEATURED_SEGMENT_IDS_BR;
     const dayBucket = Math.floor(Date.now() / 86400000) % 3;
     const segChunkSize = Math.max(1, Math.ceil(allSegmentIds.length / 3));
     const segChunkStart = dayBucket * segChunkSize;

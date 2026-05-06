@@ -18,7 +18,14 @@ const FEATURED_SEGMENTS_BY_ACCOUNT = {
     { id: "RaXvQd", name: "High LTV (preditivo)", health: "good", desc: "Klaviyo predictive: total CLV > $400, AOV > $350, predicted_orders > 2." },
     { id: "Sudqwh", name: "Collect customers", health: "good", desc: "Compradores de coleções específicas (Colléct, Best Sellers, Accessories, etc)." }
   ],
-  br: [] // BR não tem featured ainda — lista vazia, frontend mostra só os segmentos gerais
+  br: [
+    { id: "V7SkpA", name: "ENGAGED L30D", health: "good", desc: "Abriu OU clicou +3 EMM nos últimos 30D · com Optin EMM = True. Audiência principal de campanhas." },
+    { id: "RxfYKt", name: "ENGAGED L120D", health: "good", desc: "Cobertura larga — engajou nos últimos 120 dias." },
+    { id: "SgCgbU", name: "Lapsed Customers (em risco)", health: "warning", desc: "RFM 'at risk' ou 'needs attention'. Janela ideal de winback." },
+    { id: "XcbwM2", name: "KL - Inactive", health: "alert", desc: "Inativos sem engajamento — candidatos a sunset/exclusão de envios." },
+    { id: "Ta4EnS", name: "Repeat Buyers", health: "good", desc: "Qualified Repeat: 1 order L120d ou 2 orders L365d ou 3 orders alltime." },
+    { id: "RFyTVT", name: "VIP Purchasers", health: "good", desc: "BCO - VIP: 2+ Orders ou High LTV. Tier máximo de compradores BR." }
+  ]
 };
 
 function getApiKey(account) {
@@ -91,10 +98,13 @@ async function fetchAllSegments(apiKey) {
 }
 
 async function findPlacedOrderMetricId(apiKey) {
-  // Descobre o metric_id de "Placed Order" buscando TODAS as métricas e filtrando em JS.
-  // (filtro server-side estava dando erro silencioso em algumas contas)
+  // Descobre o metric_id de "Placed Order" buscando primeira página de métricas (default 50).
+  // Placed Order é métrica padrão Shopify, sempre está nos primeiros resultados.
+  // Wrap com timeout de 8s pra não bloquear /api/data se Klaviyo estiver lento.
   try {
-    const j = await klaviyoFetch(apiKey, "/metrics?fields[metric]=name");
+    const fetchPromise = klaviyoFetch(apiKey, "/metrics?fields[metric]=name");
+    const timeoutPromise = new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), 8000));
+    const j = await Promise.race([fetchPromise, timeoutPromise]);
     const placed = (j.data || []).find(m => m.attributes && m.attributes.name === "Placed Order");
     return placed ? placed.id : null;
   } catch (_) { return null; }
