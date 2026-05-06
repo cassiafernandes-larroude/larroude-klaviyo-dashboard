@@ -7,8 +7,8 @@ export const config = { runtime: "edge" };
 
 const KLAVIYO_BASE = "https://a.klaviyo.com/api";
 const REVISION = "2024-10-15";
-const MAX_ATTEMPTS = 4;
-const MAX_WAIT_MS = 4000;
+const MAX_ATTEMPTS = 8;
+const MAX_WAIT_MS = 3000;
 
 // Metric IDs conhecidos (Placed Order) — pula chamada /metrics
 const KNOWN_METRIC_IDS = { us: "RWb2qv", br: "RG3FHD" };
@@ -157,11 +157,28 @@ export default async function handler(req) {
     const cur = periodRange(days, 0);
     const prev = periodRange(days, days);
 
-    // 2. Current + previous em paralelo (Klaviyo aceita duas chamadas simultâneas pra report endpoints)
-    const [currentMap, previousMap] = await Promise.all([
-      fetchAllFlowsReport(apiKey, metricId, cur, flowIds).catch(e => ({ _error: e.message })),
-      fetchAllFlowsReport(apiKey, metricId, prev, flowIds).catch(e => ({ _error: e.message }))
-    ]);
+    // 2. Current + previous SEQUENCIAL com budget dinâmico (cabe nos 25s do Vercel)
+    const tStart = Date.now();
+    const TOTAL_BUDGET = 22000; // 22s — deixa 3s pra resposta + headers
+    const HALF_BUDGET = 14000;  // 14s pra current; o resto sobra pra previous
+
+    function withTimeout(promise, ms, label) {
+      return Promise.race([
+        promise,
+        new Promise((_, rej) => setTimeout(() => rej(new Error(label + " timeout " + ms + "ms")), ms))
+      ]);
+    }
+
+    const currentMap = await withTimeout(
+      fetchAllFlowsReport(apiKey, metricId, cur, flowIds),
+      HALF_BUDGET, "current"
+    ).catch(e => ({ _error: e.message }));
+
+    const remainingBudget = Math.max(2000, TOTAL_BUDGET - (Date.now() - tStart));
+    const previousMap = await withTimeout(
+      fetchAllFlowsReport(apiKey, metricId, prev, flowIds),
+      remainingBudget, "previous"
+    ).catch(e => ({ _error: e.message }));
 
     // Anexa name+status em cada current
     const flowsById = Object.fromEntries(liveFlows.map(f => [f.id, f]));
