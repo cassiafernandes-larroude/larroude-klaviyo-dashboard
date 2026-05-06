@@ -362,7 +362,13 @@ const SECTION_GROUPS = {
 // ========== helpers ==========
 const escapeHtml = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
 const fmtNum = n => (n == null || isNaN(n)) ? "—" : Number(n).toLocaleString("pt-BR");
-const fmtCurrency = n => (n == null || isNaN(n)) ? "—" : "$" + Number(Math.round(n)).toLocaleString("en-US");
+const CURRENCY_FORMAT = { USD: { symbol: "$", locale: "en-US" }, BRL: { symbol: "R$ ", locale: "pt-BR" }, EUR: { symbol: "€ ", locale: "pt-PT" } };
+function fmtCurrency(n) {
+  if (n == null || isNaN(n)) return "—";
+  const code = (appData && appData.account && appData.account.currency) || "USD";
+  const f = CURRENCY_FORMAT[code] || CURRENCY_FORMAT.USD;
+  return f.symbol + Number(Math.round(n)).toLocaleString(f.locale);
+}
 const fmtPct = (n, d=1) => (n == null || isNaN(n)) ? "—" : (Number(n) * 100).toFixed(d) + "%";
 const fmtDate = iso => { if (!iso) return "—"; try { return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" }); } catch { return iso; } };
 const fmtDateTime = iso => { if (!iso) return "—"; try { return new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }); } catch { return iso; } };
@@ -586,9 +592,18 @@ function renderBaseKpis() {
   const grid = document.getElementById("kpis-base");
   const featured = appData.featuredSegments || [];
   const counts = appData.keySegmentCounts || {};
-  // Mostra os 6 principais (skip ENGAGED L30D e L90D que são variantes)
+  // BR ainda não tem featured — mostra mensagem ao invés de cards vazios
+  if (featured.length === 0) {
+    grid.innerHTML = '<div class="kpi" style="grid-column: 1 / -1; padding: 16px"><div class="kpi-label">Configurar segmentos featured</div><div style="font-size: 12px; color: #6b6256; margin-top: 6px">A conta ' + (appData.accountKey || '').toUpperCase() + ' não tem segmentos featured definidos. Para configurar, edite <code>FEATURED_SEGMENTS_BY_ACCOUNT</code> em <code>api/data.js</code> com os IDs dos segmentos prioritários (Engaged, Lapsed, VIP, etc).</div></div>';
+    return;
+  }
+  // US: mostra 6 principais (skip ENGAGED L30D e L90D que são variantes)
   const order = ["VzX6n5", "QQPern", "VDLdYZ", "TDXDzA", "WGrCjj", "RaXvQd"];
-  grid.innerHTML = order.map(id => {
+  // Filtra só IDs que existem na featured list desta conta
+  const validOrder = order.filter(id => featured.some(f => f.id === id));
+  // Se nenhum dos default IDs bate, mostra os 6 primeiros featured da conta
+  const finalOrder = validOrder.length > 0 ? validOrder : featured.slice(0, 6).map(f => f.id);
+  grid.innerHTML = finalOrder.map(id => {
     const f = featured.find(x => x.id === id) || {};
     const count = counts[id];
     return '<div class="kpi"><div class="kpi-label">' + escapeHtml(f.name || id) + '</div><div class="kpi-value">' + (count != null ? fmtNum(count) : "—") + '</div><div class="kpi-sub">' + escapeHtml(f.desc || "") + '</div></div>';
