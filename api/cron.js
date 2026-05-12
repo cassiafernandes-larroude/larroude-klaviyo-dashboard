@@ -41,15 +41,24 @@ export default async function handler(req) {
     const segChunkStart = dayBucket * segChunkSize;
     const segChunk = allSegmentIds.slice(segChunkStart, segChunkStart + segChunkSize);
 
+    // Shopify attribution — últimos 3 meses
+    const now = new Date();
+    const shopifyMonths = [];
+    for (let i = 0; i < 3; i++) {
+      const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1));
+      shopifyMonths.push(d.getUTCFullYear() + "-" + String(d.getUTCMonth() + 1).padStart(2, "0"));
+    }
+
     const targets = [
       perfTarget,
       ...featuredIds.map(id => baseUrl + "/api/segment-count?id=" + id + "&account=" + acct),
       ...segChunk.map(id => baseUrl + "/api/segment-count?id=" + id + "&account=" + acct),
-      ...liveFlowIds.map(id => baseUrl + "/api/flow-trigger?id=" + id + "&account=" + acct)
+      ...liveFlowIds.map(id => baseUrl + "/api/flow-trigger?id=" + id + "&account=" + acct),
+      ...shopifyMonths.map(m => baseUrl + "/api/shopify-attribution?account=" + acct + "&month=" + m)
     ];
     targets.forEach(url => { fetch(url).catch(() => null); });
 
-    return { acct, target: targets.length, perf: 1, featured: featuredIds.length, segChunk: segChunk.length, flowTriggers: liveFlowIds.length, totalSegments: allSegmentIds.length };
+    return { acct, target: targets.length, perf: 1, featured: featuredIds.length, segChunk: segChunk.length, flowTriggers: liveFlowIds.length, shopifyMonths: shopifyMonths.length, totalSegments: allSegmentIds.length };
   }
 
   const us = await warmAccount("us");
