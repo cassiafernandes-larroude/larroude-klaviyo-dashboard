@@ -859,6 +859,7 @@ window.setJourneyPeriod = async function(days) {
   if (performanceCache[days] && performanceCache[days]._complete) {
     renderAllSections();
     try { renderTopSegments(); } catch (_) {}
+    loadCampaignRevenue(days);
     if (statusEl) statusEl.textContent = '✓ Cache de ' + days + ' dias';
     return;
   }
@@ -870,6 +871,7 @@ window.setJourneyPeriod = async function(days) {
     await loadPerformance(days);
     renderAllSections();
     try { renderTopSegments(); } catch (_) {}
+    loadCampaignRevenue(days);
     if (statusEl) statusEl.textContent = '✓ Dados de ' + days + ' dias carregados';
   } catch (e) {
     if (statusEl) statusEl.textContent = '⚠️ Erro: ' + escapeHtml(e.message);
@@ -957,8 +959,10 @@ function computeTopSegments() {
   const period = journeyPeriod || 7;
   const perfData = (performanceCache[period] && performanceCache[period].current) || {};
   const triggers = appData.flowTriggers || {};
+  const campaignData = (appData.campaignRevenueByPeriod && appData.campaignRevenueByPeriod[period]) || {};
   const aggBySeg = {};
 
+  // 1. Receita de FLOWS (via flow triggers + performance cache)
   for (const flow of appData.flows) {
     if (flow.status !== "live") continue;
     const trig = triggers[flow.id];
@@ -967,11 +971,7 @@ function computeTopSegments() {
     const perf = perfData[flow.id];
     if (!perf) continue;
     if (!aggBySeg[segId]) {
-      aggBySeg[segId] = {
-        id: segId,
-        name: trig.triggerSourceName || segId,
-        revenue: 0, conversions: 0, recipients: 0, flowCount: 0
-      };
+      aggBySeg[segId] = { id: segId, name: trig.triggerSourceName || segId, revenue: 0, conversions: 0, recipients: 0, flowCount: 0, campaignCount: 0 };
     }
     const s = aggBySeg[segId];
     s.revenue += perf.revenue || 0;
@@ -979,6 +979,21 @@ function computeTopSegments() {
     s.recipients += perf.recipients || 0;
     s.flowCount += 1;
   }
+
+  // 2. Receita de CAMPANHAS (via /api/campaign-revenue)
+  Object.keys(campaignData).forEach(segId => {
+    const c = campaignData[segId];
+    if (!aggBySeg[segId]) {
+      // Tenta achar nome via allSegments
+      const seg = (appData.allSegments || []).find(s => s.id === segId);
+      aggBySeg[segId] = { id: segId, name: (seg && seg.name) || segId, revenue: 0, conversions: 0, recipients: 0, flowCount: 0, campaignCount: 0 };
+    }
+    const s = aggBySeg[segId];
+    s.revenue += c.revenue || 0;
+    s.conversions += c.conversions || 0;
+    s.recipients += c.recipients || 0;
+    s.campaignCount += c.campaignCount || 0;
+  });
 
   // Enriquece com profile_count quando disponível
   Object.keys(aggBySeg).forEach(segId => {
@@ -996,6 +1011,22 @@ function computeTopSegments() {
   else list.sort((a, b) => b.revenue - a.revenue);
 
   return list.slice(0, 10);
+}
+
+async function loadCampaignRevenue(days) {
+  if (!appData) return;
+  appData.campaignRevenueByPeriod = appData.campaignRevenueByPeriod || {};
+  if (appData.campaignRevenueByPeriod[days]) return; // já carregado
+  try {
+    const r = await fetch(withAccount("/api/campaign-revenue?days=" + days));
+    if (!r.ok) return;
+    const j = await r.json();
+    if (j.error || !j.segments) return;
+    appData.campaignRevenueByPeriod[days] = j.segments;
+    // Re-render se aba Audiências ativa
+    const activeTab = document.querySelector('.tab.active')?.dataset?.tab;
+    if (activeTab === 'audiences') { try { renderTopSegments(); } catch (_) {} }
+  } catch (_) {}
 }
 
 function renderTopSegments() {
@@ -1246,7 +1277,7 @@ function switchTab(name) {
   document.querySelectorAll(".tab").forEach(b => b.classList.toggle("active", b.dataset.tab === name));
   document.querySelectorAll(".tab-content").forEach(c => c.classList.toggle("active", c.dataset.tabContent === name));
   if (name === "performance" && !performanceCache[currentPeriod]) loadPerformance(currentPeriod);
-  if (name === "audiences") { renderAudiences(); loadAllSegmentCounts(); }
+  if (name === "audiences") { renderAudiences(); loadAllSegmentCounts(); loadCampaignRevenue(journeyPeriod || 7); }
   if (name === "conflicts") renderConflicts();
   if (name === "opportunities") renderOpportunities();
 }
