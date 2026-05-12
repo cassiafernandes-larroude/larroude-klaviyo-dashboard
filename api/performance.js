@@ -123,8 +123,8 @@ export default async function handler(req) {
     const days = parseInt(daysStr, 10);
     const account = (url.searchParams.get("account") || "us").toLowerCase();
 
-    if (![7, 14, 28].includes(days)) {
-      return new Response(JSON.stringify({ error: "days deve ser 7, 14 ou 28" }), { status: 400, headers: { "content-type": "application/json" } });
+    if (![7, 14, 28, 60].includes(days)) {
+      return new Response(JSON.stringify({ error: "days deve ser 7, 14, 28 ou 60" }), { status: 400, headers: { "content-type": "application/json" } });
     }
     if (account !== "us" && account !== "br") {
       return new Response(JSON.stringify({ error: "account inválida" }), { status: 400, headers: { "content-type": "application/json" } });
