@@ -61,14 +61,20 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Ar
 .subgroup-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding-bottom: 8px; border-bottom: 1px solid #ece7df; margin-bottom: 4px; }
 .subgroup-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #4a4239; }
 .subgroup-meta { font-size: 11px; color: #8a8275; }
-.flow-row { display: grid; grid-template-columns: 70px 1fr 130px 130px 90px; gap: 14px; align-items: center; padding: 11px 0; border-bottom: 1px solid #f3efe7; }
+.flow-row { display: grid; grid-template-columns: 60px minmax(200px, 1.5fr) 110px 95px 95px 80px 80px 60px; gap: 12px; align-items: center; padding: 11px 0; border-bottom: 1px solid #f3efe7; font-size: 12px; }
 .flow-row:last-child { border-bottom: none; }
+.flow-header-row { display: grid; grid-template-columns: 60px minmax(200px, 1.5fr) 110px 95px 95px 80px 80px 60px; gap: 12px; padding: 6px 0; border-bottom: 1px solid #d9d2c4; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #8a8275; }
+.flow-header-row .num, .flow-row .num { text-align: right; font-variant-numeric: tabular-nums; }
 .flow-name a { color: #1a1a1a; text-decoration: none; font-weight: 500; }
 .flow-name a:hover { color: #d44a8a; text-decoration: underline; }
 .flow-trigger { font-size: 11px; color: #6b6256; }
-.flow-updated { font-size: 11px; color: #8a8275; text-align: right; font-variant-numeric: tabular-nums; }
+.flow-date { font-size: 11px; color: #8a8275; font-variant-numeric: tabular-nums; }
 .flow-link { font-size: 11px; text-align: right; }
 .flow-link a { color: #d44a8a; text-decoration: none; font-weight: 500; }
+.subgroup-wrap { overflow-x: auto; }
+.journey-period-bar { display: flex; align-items: center; gap: 12px; margin: 18px 0 14px; padding: 10px 14px; background: #f7f1ea; border-radius: 8px; }
+.journey-period-label { font-size: 12px; font-weight: 600; color: #4a4239; }
+.journey-period-status { font-size: 11px; color: #8a8275; margin-left: auto; }
 .pill { display: inline-flex; align-items: center; padding: 3px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
 .pill-live { background: #dcf2dc; color: #2e6b2c; }
 .pill-draft { background: #fcf0d2; color: #7a5400; }
@@ -220,6 +226,16 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Ar
     </div>
   </section>
 
+  <div class="journey-period-bar">
+    <span class="journey-period-label">Período de Disparos / Contatos:</span>
+    <div class="period-tabs" id="journey-period-tabs">
+      <button class="period-btn active" data-jperiod="7" onclick="setJourneyPeriod(7)">7 dias</button>
+      <button class="period-btn" data-jperiod="28" onclick="setJourneyPeriod(28)">28 dias</button>
+      <button class="period-btn" data-jperiod="60" onclick="setJourneyPeriod(60)">60 dias</button>
+    </div>
+    <span class="journey-period-status" id="journey-period-status"></span>
+  </div>
+
   <section class="card" id="card-entry">
     <div class="section-num">01 · Entrada</div>
     <h2 class="card-title">Como o perfil chega à base</h2>
@@ -268,6 +284,8 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Ar
       <h2 class="card-title">📈 Performance dos Flows</h2>
       <div class="period-tabs">
         <button class="period-btn active" data-period="7">7 dias</button>
+        <button class="period-btn" data-period="28">28 dias</button>
+        <button class="period-btn" data-period="60">60 dias</button>
       </div>
     </div>
     <div class="card-desc">Δ% mostra crescimento ou queda vs período anterior. Diagnóstico automático abaixo de cada flow.</div>
@@ -664,15 +682,60 @@ function renderFlowKpis() {
 }
 
 // ========== render: journey sections ==========
+let journeyPeriod = 7; // dias mostrados nas colunas Disparos/Contatos da Jornada
+function renderFlowHeader() {
+  const lbl = 'L' + journeyPeriod + 'D';
+  return `<div class="flow-header-row">
+    <div>Status</div>
+    <div>Flow</div>
+    <div>Trigger</div>
+    <div>Criado em</div>
+    <div>Última atualização</div>
+    <div class="num">Disparos ${lbl}</div>
+    <div class="num">Contatos ${lbl}</div>
+    <div></div>
+  </div>`;
+}
+
 function renderFlowRow(f) {
+  const perf = (performanceCache[journeyPeriod] && performanceCache[journeyPeriod].current) ? performanceCache[journeyPeriod].current[f.id] : null;
+  const disparos = perf ? fmtNum(perf.recipients) : '—';
+  const contatos = perf ? fmtNum(perf.opens) : '—';
   return `<div class="flow-row">
     <div>${statusPill(f.status)}</div>
     <div class="flow-name"><a href="https://www.klaviyo.com/flow/${encodeURIComponent(f.id)}/edit" target="_blank" rel="noopener">${escapeHtml(f.name)}</a></div>
     <div class="flow-trigger">${escapeHtml(f.triggerType || "")}</div>
-    <div class="flow-updated">${fmtDateTime(f.updated)}</div>
+    <div class="flow-date">${fmtDate(f.created)}</div>
+    <div class="flow-date">${fmtDate(f.updated)}</div>
+    <div class="num">${disparos}</div>
+    <div class="num">${contatos}</div>
     <div class="flow-link"><a href="https://www.klaviyo.com/flow/${encodeURIComponent(f.id)}/edit" target="_blank" rel="noopener">Abrir →</a></div>
   </div>`;
 }
+
+window.setJourneyPeriod = async function(days) {
+  if (journeyPeriod === days) return;
+  journeyPeriod = days;
+  // Atualiza UI do seletor
+  document.querySelectorAll('[data-jperiod]').forEach(b => b.classList.toggle('active', parseInt(b.dataset.jperiod,10) === days));
+  const statusEl = document.getElementById('journey-period-status');
+  // Se já temos cache para esse período, renderiza instantâneo
+  if (performanceCache[days] && performanceCache[days]._complete) {
+    renderAllSections();
+    if (statusEl) statusEl.textContent = '✓ Cache de ' + days + ' dias';
+    return;
+  }
+  // Sem cache — busca
+  if (statusEl) statusEl.textContent = '⏳ Buscando dados de ' + days + ' dias…';
+  renderAllSections();
+  try {
+    await loadPerformance(days);
+    renderAllSections();
+    if (statusEl) statusEl.textContent = '✓ Dados de ' + days + ' dias carregados';
+  } catch (e) {
+    if (statusEl) statusEl.textContent = '⚠️ Erro: ' + escapeHtml(e.message);
+  }
+};
 
 // Para BR (e qualquer conta sem mapeamento curado de IDs), usa cluster patterns reaproveitados de FLOW_CLUSTERS
 const SECTION_CLUSTER_MAP_BR = {
@@ -710,7 +773,7 @@ function renderSection(key) {
     for (const g of groups) {
       const flows = (g.flowIds || []).map(id => flowsById[id]).filter(Boolean);
       html += '<div class="subgroup"><div class="subgroup-head"><div class="subgroup-title">' + g.title + '</div><div class="subgroup-meta">' + flows.length + ' flows</div></div>';
-      html += flows.length === 0 ? '<div class="empty">Nenhum flow.</div>' : flows.map(renderFlowRow).join("");
+      html += flows.length === 0 ? '<div class="empty">Nenhum flow.</div>' : (renderFlowHeader() + flows.map(renderFlowRow).join(""));
       html += '</div>';
     }
   } else {
@@ -1049,6 +1112,8 @@ async function init() {
     renderAllSections();
     // Disparar segment counts em paralelo (não bloqueia render inicial)
     loadKeySegmentCounts();
+    // Pré-carrega performance em background pra popular Disparos/Contatos nas seções da Jornada
+    loadPerformance(currentPeriod).then(() => { try { renderAllSections(); } catch (_) {} }).catch(() => {});
   } catch (e) {
     document.getElementById("error-banner").innerHTML = '<div class="error-banner">⚠️ Erro ao carregar dados: ' + escapeHtml(e.message) + '<br><small>Verifique se KLAVIYO_API_KEY está configurada nas env vars do Vercel.</small></div>';
   }
