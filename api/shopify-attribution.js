@@ -1,98 +1,41 @@
-// Vercel Edge Function — atribuição Klaviyo via Shopify (last-click UTM).
-// Endpoint: /api/shopify-attribution?account=us|br&month=YYYY-MM
-// Estratégia: fetch todos os orders do mês, filtra utm_source=klaviyo no landing_site.
-// Cache 7d. Cron warm os 3 últimos meses diariamente.
+// Vercel Serverless Function (Node runtime) — atribuição Klaviyo via Shopify
+// Lê do BigQuery `larroude-data-platform.shopify_{us,br}.orders` (já ingerido via Airbyte).
+// Filtra `landing_site` com `utm_source=klaviyo` (last-click UTM canonical).
+// 1 query agrega o mês inteiro — sub-segundo no BigQuery vs 25s+ Shopify REST.
 
-export const config = { runtime: "edge" };
+import { BigQuery } from "@google-cloud/bigquery";
 
-const API_VERSION = "2025-01";
-const MAX_PAGES = 30; // 30 × 250 = 7.500 pedidos/mês (cobre conta US com folga)
+export const config = { maxDuration: 15 };
 
-function getCreds(account) {
-  if (account === "br") return {
-    token: process.env.SHOPIFY_BR_ADMIN_API_TOKEN,
-    domain: process.env.SHOPIFY_BR_STORE_DOMAIN
-  };
-  return {
-    token: process.env.SHOPIFY_US_ADMIN_API_TOKEN,
-    domain: process.env.SHOPIFY_US_STORE_DOMAIN
-  };
-}
-
-function isKlaviyoAttributed(order) {
-  const ls = order.landing_site || "";
-  // Default Klaviyo email tracking: utm_source=klaviyo (canonical)
-  return /[?&]utm_source=klaviyo\b/i.test(ls);
-}
-
-function monthBounds(year, month) {
-  // month 1-12 (humano), retorna ISO strings UTC
-  const start = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
-  const end = new Date(Date.UTC(year, month, 0, 23, 59, 59));
-  return { startISO: start.toISOString(), endISO: end.toISOString() };
-}
-
-async function fetchAllOrdersForMonth(domain, token, year, month) {
-  const { startISO, endISO } = monthBounds(year, month);
-  const base = "https://" + domain + "/admin/api/" + API_VERSION + "/orders.json";
-  let nextUrl = base + "?status=any&limit=250&created_at_min=" + encodeURIComponent(startISO) + "&created_at_max=" + encodeURIComponent(endISO) + "&fields=id,total_price,landing_site,currency,created_at";
-
-  const orders = [];
-  let pages = 0;
-  while (nextUrl && pages < MAX_PAGES) {
-    const res = await fetch(nextUrl, {
-      headers: {
-        "X-Shopify-Access-Token": token,
-        "accept": "application/json"
-      }
-    });
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error("Shopify " + res.status + " on page " + (pages + 1) + ": " + text.slice(0, 150));
-    }
-    const data = await res.json();
-    for (const o of (data.orders || [])) orders.push(o);
-
-    // Shopify pagination via Link header (cursor-based via page_info)
-    const link = res.headers.get("Link") || res.headers.get("link") || "";
-    const m = link.match(/<([^>]+)>\s*;\s*rel="next"/i);
-    nextUrl = m ? m[1] : null;
-    pages++;
+let bqClient = null;
+function getBQ() {
+  if (bqClient) return bqClient;
+  const projectId = process.env.GCP_PROJECT_ID || "larroude-data-platform";
+  const b64 = process.env.GCP_SA_KEY_BASE64;
+  if (!b64) {
+    const err = new Error("GCP_SA_KEY_BASE64 não configurado na Vercel.");
+    err.code = "NO_CREDENTIALS";
+    throw err;
   }
-  return { orders, pages, hitMaxPages: pages >= MAX_PAGES && nextUrl };
-}
-
-function aggregate(orders) {
-  let totalOrders = 0, klaviyoOrders = 0;
-  let totalRevenue = 0, klaviyoRevenue = 0;
-  let currency = null;
-  for (const o of orders) {
-    const price = parseFloat(o.total_price || "0");
-    if (!isFinite(price) || price < 0) continue;
-    totalOrders++;
-    totalRevenue += price;
-    if (!currency && o.currency) currency = o.currency;
-    if (isKlaviyoAttributed(o)) {
-      klaviyoOrders++;
-      klaviyoRevenue += price;
-    }
-  }
-  return { totalOrders, totalRevenue, klaviyoOrders, klaviyoRevenue, currency };
-}
-
-export default async function handler(req) {
+  let credentials;
   try {
-    const url = new URL(req.url);
-    const account = (url.searchParams.get("account") || "us").toLowerCase();
-    const monthStr = url.searchParams.get("month") || "";
+    credentials = JSON.parse(Buffer.from(b64, "base64").toString("utf8"));
+  } catch (e) {
+    throw new Error("GCP_SA_KEY_BASE64 mal-formado (não é base64 JSON válido)");
+  }
+  bqClient = new BigQuery({ projectId, credentials });
+  return bqClient;
+}
+
+export default async function handler(req, res) {
+  res.setHeader("content-type", "application/json");
+  try {
+    const account = (req.query.account || "us").toLowerCase();
+    const monthStr = req.query.month || "";
 
     if (!["us", "br"].includes(account)) {
-      return new Response(JSON.stringify({ error: "account inválida" }), { status: 400, headers: { "content-type": "application/json" } });
-    }
-
-    const { token, domain } = getCreds(account);
-    if (!token || !domain) {
-      return new Response(JSON.stringify({ error: "SHOPIFY env vars não configuradas para account=" + account }), { status: 500, headers: { "content-type": "application/json" } });
+      res.status(400).end(JSON.stringify({ error: "account inválida (use us|br)" }));
+      return;
     }
 
     let year, month;
@@ -106,33 +49,54 @@ export default async function handler(req) {
       month = now.getUTCMonth() + 1;
     }
 
-    const { orders, pages, hitMaxPages } = await fetchAllOrdersForMonth(domain, token, year, month);
-    const agg = aggregate(orders);
-    const attributionPct = agg.totalRevenue > 0 ? agg.klaviyoRevenue / agg.totalRevenue : 0;
+    const startDate = `${year}-${String(month).padStart(2, "0")}-01`;
+    const nextMonth = month === 12 ? { y: year + 1, m: 1 } : { y: year, m: month + 1 };
+    const endDate = `${nextMonth.y}-${String(nextMonth.m).padStart(2, "0")}-01`;
 
-    return new Response(JSON.stringify({
-      account, year, month,
-      monthKey: year + "-" + String(month).padStart(2, "0"),
-      totalOrders: agg.totalOrders,
-      totalRevenue: Number(agg.totalRevenue.toFixed(2)),
-      klaviyoOrders: agg.klaviyoOrders,
-      klaviyoRevenue: Number(agg.klaviyoRevenue.toFixed(2)),
-      attributionPct: Number((attributionPct * 100).toFixed(2)),
-      currency: agg.currency,
-      pages,
-      hitMaxPages: !!hitMaxPages,
+    const table = `larroude-data-platform.shopify_${account}.orders`;
+    const sql = `
+      SELECT
+        COUNT(*) AS total_orders,
+        IFNULL(ROUND(SUM(total_price), 2), 0) AS total_revenue,
+        COUNTIF(REGEXP_CONTAINS(landing_site, r'(?i)[?&]utm_source=klaviyo')) AS klaviyo_orders,
+        IFNULL(ROUND(SUM(IF(REGEXP_CONTAINS(landing_site, r'(?i)[?&]utm_source=klaviyo'), total_price, 0)), 2), 0) AS klaviyo_revenue,
+        ANY_VALUE(currency) AS currency
+      FROM \`${table}\`
+      WHERE created_at >= TIMESTAMP(@start_date) AND created_at < TIMESTAMP(@end_date)
+    `;
+
+    const bq = getBQ();
+    const [rows] = await bq.query({
+      query: sql,
+      params: { start_date: startDate, end_date: endDate },
+      location: "US"
+    });
+
+    const r = rows[0] || {};
+    const totalRevenue = Number(r.total_revenue) || 0;
+    const klaviyoRevenue = Number(r.klaviyo_revenue) || 0;
+    const attributionPct = totalRevenue > 0 ? (klaviyoRevenue / totalRevenue * 100) : 0;
+
+    res.setHeader("cache-control", "public, s-maxage=604800, stale-while-revalidate=86400");
+    res.status(200).end(JSON.stringify({
+      account,
+      year, month,
+      monthKey: `${year}-${String(month).padStart(2, "0")}`,
+      totalOrders: Number(r.total_orders) || 0,
+      totalRevenue,
+      klaviyoOrders: Number(r.klaviyo_orders) || 0,
+      klaviyoRevenue,
+      attributionPct: Number(attributionPct.toFixed(2)),
+      currency: r.currency || (account === "br" ? "BRL" : "USD"),
+      source: "bigquery",
       fetchedAt: new Date().toISOString()
-    }), {
-      status: 200,
-      headers: {
-        "content-type": "application/json",
-        "cache-control": agg.totalOrders > 0 ? "public, s-maxage=604800, stale-while-revalidate=86400" : "public, s-maxage=600"
-      }
-    });
+    }));
   } catch (e) {
-    return new Response(JSON.stringify({ error: e.message || String(e) }), {
-      status: 200,
-      headers: { "content-type": "application/json", "cache-control": "public, s-maxage=60" }
-    });
+    res.setHeader("cache-control", "public, s-maxage=60");
+    res.status(200).end(JSON.stringify({
+      error: e.message || String(e),
+      code: e.code,
+      fetchedAt: new Date().toISOString()
+    }));
   }
 }
