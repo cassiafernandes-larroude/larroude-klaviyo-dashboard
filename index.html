@@ -24,6 +24,16 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Ar
 .kpi-section { margin-bottom: 18px; }
 .kpi-section-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #6b6256; margin-bottom: 8px; padding-left: 2px; }
 .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(155px, 1fr)); gap: 10px; }
+.kpi-grid-3 { grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.kpi-month { background: #fff; border-radius: 8px; padding: 14px; border: 1px solid #ece7df; }
+.kpi-month-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #6b6256; margin-bottom: 10px; }
+.kpi-month-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.kpi-month-cell { font-size: 11px; }
+.kpi-month-cell .lbl { color: #8a8275; font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; }
+.kpi-month-cell .val { font-size: 16px; font-weight: 700; color: #1a1a1a; margin-top: 2px; font-variant-numeric: tabular-nums; }
+.kpi-month-cell .sub { font-size: 10px; color: #8a8275; margin-top: 1px; }
+.kpi-month-cell.attribuida .val { color: #d44a8a; }
+@media (max-width: 720px) { .kpi-grid-3 { grid-template-columns: 1fr; } }
 .kpi { background: #fff; border: 1px solid #ece7df; border-radius: 12px; padding: 16px 18px; }
 .kpi .kpi-label { font-size: 10px; color: #6b6256; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; }
 .kpi .kpi-value { font-size: 24px; font-weight: 700; line-height: 1.1; margin-top: 6px; color: #1a1a1a; font-variant-numeric: tabular-nums; }
@@ -177,12 +187,11 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Ar
 <!-- TAB: JORNADA -->
 <div class="tab-content active" data-tab-content="journey">
   <div class="kpi-section">
-    <div class="kpi-section-label">💰 Revenue · Placed Order últimos 3 meses</div>
-    <div class="kpi-grid" id="kpis-revenue">
-      <div class="kpi"><div class="kpi-label">Revenue L3M</div><div class="kpi-value skeleton">—</div></div>
-      <div class="kpi"><div class="kpi-label">Orders L3M</div><div class="kpi-value skeleton">—</div></div>
-      <div class="kpi"><div class="kpi-label">AOV</div><div class="kpi-value skeleton">—</div></div>
-      <div class="kpi"><div class="kpi-label">Revenue / Repeat Buyer</div><div class="kpi-value skeleton">—</div></div>
+    <div class="kpi-section-label">💰 Revenue mensal · Shopify + atribuição Klaviyo (UTM last-click)</div>
+    <div class="kpi-grid kpi-grid-3" id="kpis-revenue-monthly">
+      <div class="kpi-month" data-month-idx="0"><div class="kpi-month-label">Carregando…</div></div>
+      <div class="kpi-month" data-month-idx="1"><div class="kpi-month-label">Carregando…</div></div>
+      <div class="kpi-month" data-month-idx="2"><div class="kpi-month-label">Carregando…</div></div>
     </div>
   </div>
 
@@ -601,16 +610,64 @@ async function renderDiagram(counts) {
 
 // ========== render: revenue/base/flows KPIs ==========
 function renderRevenueKpis() {
-  const r = appData.revenue;
-  if (!r) return;
-  const aov = r.orders > 0 ? r.revenue / r.orders : 0;
-  const repeatBuyers = appData.keySegmentCounts && appData.keySegmentCounts["TDXDzA"];
-  const revPerRepeat = (repeatBuyers && r.revenue) ? r.revenue / repeatBuyers : null;
-  const cells = document.querySelectorAll("#kpis-revenue .kpi-value");
-  cells[0].textContent = fmtCurrency(r.revenue); cells[0].classList.remove("skeleton");
-  cells[1].textContent = fmtNum(r.orders); cells[1].classList.remove("skeleton");
-  cells[2].textContent = fmtCurrency(aov); cells[2].classList.remove("skeleton");
-  cells[3].textContent = revPerRepeat ? fmtCurrency(revPerRepeat) : "—"; cells[3].classList.remove("skeleton");
+  // Substituído pelos cards mensais Shopify — loadMonthlyRevenue() é chamado em init()
+}
+
+const MONTH_PT = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+
+function monthCardHtml(monthKey, label) {
+  return '<div class="kpi-month" data-month-key="' + monthKey + '">' +
+    '<div class="kpi-month-label">' + escapeHtml(label) + '</div>' +
+    '<div class="kpi-month-grid">' +
+      '<div class="kpi-month-cell"><div class="lbl">Revenue</div><div class="val" data-field="rev">—</div></div>' +
+      '<div class="kpi-month-cell"><div class="lbl">Orders</div><div class="val" data-field="ord">—</div></div>' +
+      '<div class="kpi-month-cell"><div class="lbl">AOV</div><div class="val" data-field="aov">—</div></div>' +
+      '<div class="kpi-month-cell attribuida"><div class="lbl">Receita Atribuída</div><div class="val" data-field="attr">—</div><div class="sub" data-field="attrpct">—</div></div>' +
+    '</div></div>';
+}
+
+async function loadMonthlyRevenue() {
+  const grid = document.getElementById('kpis-revenue-monthly');
+  if (!grid) return;
+  const now = new Date();
+  const months = [];
+  for (let i = 2; i >= 0; i--) {
+    const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1));
+    const y = d.getUTCFullYear();
+    const m = d.getUTCMonth();
+    months.push({ key: y + '-' + String(m + 1).padStart(2, '0'), label: MONTH_PT[m] + '/' + y });
+  }
+  grid.innerHTML = months.map(m => monthCardHtml(m.key, m.label)).join('');
+
+  // Fetch em paralelo
+  await Promise.all(months.map(async m => {
+    try {
+      const r = await fetch(withAccount('/api/shopify-attribution?month=' + m.key));
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const d = await r.json();
+      if (d.error) throw new Error(d.error);
+      const card = grid.querySelector('[data-month-key="' + m.key + '"]');
+      if (!card) return;
+      const aov = d.totalOrders > 0 ? d.totalRevenue / d.totalOrders : 0;
+      const setVal = (field, txt) => { const el = card.querySelector('[data-field="' + field + '"]'); if (el) el.textContent = txt; };
+      setVal('rev', fmtCurrency(d.totalRevenue));
+      setVal('ord', fmtNum(d.totalOrders));
+      setVal('aov', fmtCurrency(aov));
+      setVal('attr', fmtCurrency(d.klaviyoRevenue || 0));
+      const pct = (d.attributionPct != null) ? d.attributionPct.toFixed(1) + '%' : '—';
+      setVal('attrpct', pct + ' · ' + fmtNum(d.klaviyoOrders || 0) + ' pedidos');
+    } catch (e) {
+      const card = grid.querySelector('[data-month-key="' + m.key + '"]');
+      if (card) {
+        const setVal = (field, txt) => { const el = card.querySelector('[data-field="' + field + '"]'); if (el) el.textContent = txt; };
+        setVal('rev', '⚠️');
+        setVal('ord', '—');
+        setVal('aov', '—');
+        setVal('attr', '—');
+        setVal('attrpct', escapeHtml(e.message).slice(0, 40));
+      }
+    }
+  }));
 }
 
 function renderLtvKpis() {
@@ -1155,6 +1212,7 @@ async function init() {
     renderLtvKpis();
     renderBaseKpis();
     renderFlowKpis();
+    loadMonthlyRevenue(); // Shopify attribution — 3 cards mensais
     await renderDiagram(appData.keySegmentCounts);
     renderAllSections();
     // Disparar segment counts em paralelo (não bloqueia render inicial)
