@@ -54,18 +54,23 @@ function periodRange(days) {
 async function fetchSentCampaigns(apiKey, since) {
   // Fetch sent campaigns + their audiences
   const all = [];
-  let url = "/campaigns?filter=and(equals(messages.channel,'email'),greater-or-equal(send_time,'" + since + "'),equals(status,'Sent'))&fields[campaign]=name,send_time,audiences&page[size]=50";
+  // Klaviyo /campaigns requer filtro com messages.channel (obrigatório), e usa aspas duplas escapadas
+  const filter = "and(equals(messages.channel,\"email\"),greater-or-equal(send_time,\"" + since + "\"))";
+  let url = "/campaigns?filter=" + encodeURIComponent(filter) + "&fields[campaign]=name,send_time,audiences,status&page[size]=50";
   let safety = 12;
   while (url && safety-- > 0) {
     const j = await klaviyoFetchWithRetry(apiKey, url.replace(KLAVIYO_BASE, ""));
     (j.data || []).forEach(c => {
       const a = c.attributes || {};
+      // Filtra status no client (filter inline tem limitações)
+      if (a.status && !["Sent", "Sending", "Scheduled"].includes(a.status)) return;
       const audiences = a.audiences || {};
       const included = audiences.included || [];
       all.push({
         id: c.id,
         name: a.name,
         send_time: a.send_time,
+        status: a.status,
         audience_ids: included
       });
     });
