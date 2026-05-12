@@ -47,6 +47,9 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Ar
 .account-btn { padding: 4px 14px; font-size: 12px; font-weight: 600; color: #6a5e4f; background: none; border: none; border-radius: 4px; cursor: pointer; transition: all 0.15s; }
 .account-btn.active { background: #d44a8a; color: white; }
 .account-btn:not(.active):hover { background: #e8e2d6; }
+.refresh-btn { margin-left: 10px; padding: 6px 14px; font-size: 12px; font-weight: 600; color: #fff; background: #6a5e4f; border: none; border-radius: 6px; cursor: pointer; transition: all 0.15s; vertical-align: middle; }
+.refresh-btn:hover:not(:disabled) { background: #4a4239; }
+.refresh-btn:disabled { background: #b0a99c; cursor: wait; }
 .legend-row { display: flex; flex-wrap: wrap; gap: 16px; justify-content: center; margin-top: 16px; padding-top: 12px; border-top: 1px solid #f0ece5; font-size: 11px; color: #4a4239; }
 .legend-item { display: inline-flex; align-items: center; gap: 6px; }
 .legend-swatch { width: 14px; height: 14px; border-radius: 3px; }
@@ -150,7 +153,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Ar
 <header class="page-header">
   <div>
     <h1 class="page-title">Larroudé · Jornada do perfil — Klaviyo</h1>
-    <div class="account-toggle"><button class="account-btn active" data-account="us" onclick="switchAccount('us')">🇺🇸 US</button><button class="account-btn" data-account="br" onclick="switchAccount('br')">🇧🇷 BR</button></div>
+    <div class="account-toggle"><button class="account-btn active" data-account="us" onclick="switchAccount('us')">🇺🇸 US</button><button class="account-btn" data-account="br" onclick="switchAccount('br')">🇧🇷 BR</button><button class="refresh-btn" id="refresh-btn" onclick="forceRefresh()" title="Limpa cache e busca dados frescos do Klaviyo (~30–60s)">🔄 Atualizar agora</button></div>
     <div class="page-subtitle" id="page-subtitle">Carregando…</div>
   </div>
 </header>
@@ -411,10 +414,43 @@ window.switchAccount = function(acct) {
   applyAccountUI();
 init();
 };
+let __forceFresh = false;
 function withAccount(url) {
   const sep = url.includes('?') ? '&' : '?';
-  return url + sep + 'account=' + currentAccount;
+  let result = url + sep + 'account=' + currentAccount;
+  if (__forceFresh) result += '&fresh=' + Date.now();
+  return result;
 }
+
+window.forceRefresh = async function() {
+  const btn = document.getElementById('refresh-btn');
+  if (btn.disabled) return;
+  btn.disabled = true;
+  const originalText = btn.innerHTML;
+  btn.innerHTML = '⏳ Atualizando…';
+  __forceFresh = true;
+  // Reset todos os caches in-memory
+  appData = null;
+  flowsById = {};
+  performanceCache = {};
+  __allSegmentsLoaded = false;
+  window.__perfLoaded = false;
+  document.getElementById('error-banner').innerHTML = '';
+  document.getElementById('page-subtitle').textContent = 'Atualizando dados frescos do Klaviyo (~30–60s)…';
+  try {
+    await init();
+    // Re-dispara performance se aba performance estiver ativa
+    const activeTab = document.querySelector('.tab.active')?.dataset?.tab;
+    if (activeTab === 'performance') await loadPerformance(currentPeriod);
+    if (activeTab === 'audiences') loadAllSegmentCounts();
+    btn.innerHTML = '✓ Atualizado';
+    setTimeout(() => { btn.innerHTML = originalText; btn.disabled = false; }, 2000);
+  } catch (e) {
+    btn.innerHTML = '⚠️ Erro — tentar novamente';
+    btn.disabled = false;
+  }
+  __forceFresh = false;
+};
 
 mermaid.initialize({
   startOnLoad: false, securityLevel: "loose", theme: "base",
