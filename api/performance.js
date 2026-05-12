@@ -157,12 +157,8 @@ export default async function handler(req) {
     const cur = periodRange(days, 0);
     const prev = periodRange(days, days);
 
-    // 2. Current + previous SEQUENCIAL com budget dinâmico (cabe nos 25s do Vercel)
-    // Periodos maiores (60d) precisam mais tempo no Klaviyo — current sempre prioritário
-    const tStart = Date.now();
-    const TOTAL_BUDGET = 22000; // 22s deixa 3s pra response + headers
-    const CURRENT_BUDGET = days >= 28 ? 18000 : 14000;
-
+    // 2. Current + previous EM PARALELO (mais rápido — Klaviyo aceita 2 reports simultâneos)
+    // Wraps em timeout pra não estourar 25s Vercel mesmo se Klaviyo throttlar
     function withTimeout(promise, ms, label) {
       return Promise.race([
         promise,
@@ -170,22 +166,11 @@ export default async function handler(req) {
       ]);
     }
 
-    const currentMap = await withTimeout(
-      fetchAllFlowsReport(apiKey, metricId, cur, flowIds),
-      CURRENT_BUDGET, "current"
-    ).catch(e => ({ _error: e.message }));
-
-    // Previous é nice-to-have (Δ%). Se sobra >2s, tenta. Senão, skip.
-    const remainingBudget = TOTAL_BUDGET - (Date.now() - tStart);
-    let previousMap = {};
-    if (remainingBudget >= 2000) {
-      previousMap = await withTimeout(
-        fetchAllFlowsReport(apiKey, metricId, prev, flowIds),
-        remainingBudget, "previous"
-      ).catch(e => ({ _error: e.message }));
-    } else {
-      previousMap = { _error: "skipped (budget esgotado)" };
-    }
+    const PERIOD_BUDGET = days >= 28 ? 22000 : 20000;
+    const [currentMap, previousMap] = await Promise.all([
+      withTimeout(fetchAllFlowsReport(apiKey, metricId, cur, flowIds), PERIOD_BUDGET, "current").catch(e => ({ _error: e.message })),
+      withTimeout(fetchAllFlowsReport(apiKey, metricId, prev, flowIds), PERIOD_BUDGET, "previous").catch(e => ({ _error: e.message }))
+    ]);
 
     // Anexa name+status em cada current
     const flowsById = Object.fromEntries(liveFlows.map(f => [f.id, f]));
