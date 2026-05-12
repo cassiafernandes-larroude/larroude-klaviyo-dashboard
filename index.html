@@ -762,7 +762,7 @@ function renderSectionFromClusters(key) {
     matched.forEach(f => usedFlowIds.add(f.id));
     const title = (cfg.titleByCluster && cfg.titleByCluster[clusterId]) || cluster.label;
     html += '<div class="subgroup"><div class="subgroup-head"><div class="subgroup-title">' + cluster.icon + ' ' + title + '</div><div class="subgroup-meta">' + matched.length + ' flows</div></div>';
-    html += matched.length === 0 ? '<div class="empty">Nenhum flow.</div>' : matched.map(renderFlowRow).join("");
+    html += matched.length === 0 ? '<div class="empty">Nenhum flow.</div>' : (renderFlowHeader() + matched.map(renderFlowRow).join(""));
     html += '</div>';
   }
   return html;
