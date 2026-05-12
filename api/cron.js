@@ -23,10 +23,12 @@ export default async function handler(req) {
   async function warmAccount(acct) {
     const dataRes = await fetch(baseUrl + "/api/data?account=" + acct + "&_warm=1").catch(() => null);
     let allSegmentIds = [];
+    let liveFlowIds = [];
     if (dataRes && dataRes.ok) {
       try {
         const data = await dataRes.json();
         allSegmentIds = data && data.allSegments ? data.allSegments.map(s => s.id) : [];
+        liveFlowIds = data && data.flows ? data.flows.filter(f => f.status === "live").map(f => f.id) : [];
       } catch (_) {}
     }
 
@@ -42,11 +44,12 @@ export default async function handler(req) {
     const targets = [
       perfTarget,
       ...featuredIds.map(id => baseUrl + "/api/segment-count?id=" + id + "&account=" + acct),
-      ...segChunk.map(id => baseUrl + "/api/segment-count?id=" + id + "&account=" + acct)
+      ...segChunk.map(id => baseUrl + "/api/segment-count?id=" + id + "&account=" + acct),
+      ...liveFlowIds.map(id => baseUrl + "/api/flow-trigger?id=" + id + "&account=" + acct)
     ];
     targets.forEach(url => { fetch(url).catch(() => null); });
 
-    return { acct, target: targets.length, perf: 1, featured: featuredIds.length, segChunk: segChunk.length, totalSegments: allSegmentIds.length };
+    return { acct, target: targets.length, perf: 1, featured: featuredIds.length, segChunk: segChunk.length, flowTriggers: liveFlowIds.length, totalSegments: allSegmentIds.length };
   }
 
   const us = await warmAccount("us");
