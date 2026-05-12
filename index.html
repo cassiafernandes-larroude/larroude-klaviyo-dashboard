@@ -34,6 +34,18 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Ar
 .kpi-month-cell .sub { font-size: 10px; color: #8a8275; margin-top: 1px; }
 .kpi-month-cell.attribuida .val { color: #d44a8a; }
 @media (max-width: 720px) { .kpi-grid-3 { grid-template-columns: 1fr; } }
+.top-seg-toggle { display: inline-flex; gap: 0; background: #f0ece5; border-radius: 6px; padding: 3px; }
+.top-seg-btn { padding: 6px 14px; font-size: 12px; font-weight: 600; color: #6a5e4f; background: none; border: none; border-radius: 4px; cursor: pointer; transition: all 0.15s; }
+.top-seg-btn.active { background: #d44a8a; color: white; }
+.top-seg-btn:not(.active):hover { background: #e8e2d6; }
+.top-seg-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.top-seg-table th { text-align: left; padding: 8px 10px; background: #f7f1ea; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: #6b6256; border-bottom: 1px solid #d9d2c4; }
+.top-seg-table th.num, .top-seg-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.top-seg-table tr td { padding: 10px; border-bottom: 1px solid #f3efe7; }
+.top-seg-table tr:hover td { background: #faf6f0; }
+.top-seg-rank { display: inline-block; min-width: 22px; height: 22px; text-align: center; line-height: 22px; background: #f0ece5; color: #6b6256; font-weight: 700; font-size: 10px; border-radius: 11px; margin-right: 8px; }
+.top-seg-rank.top1 { background: #d44a8a; color: white; }
+.top-seg-rank.top2, .top-seg-rank.top3 { background: #b03b75; color: white; }
 .kpi { background: #fff; border: 1px solid #ece7df; border-radius: 12px; padding: 16px 18px; }
 .kpi .kpi-label { font-size: 10px; color: #6b6256; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; }
 .kpi .kpi-value { font-size: 24px; font-weight: 700; line-height: 1.1; margin-top: 6px; color: #1a1a1a; font-variant-numeric: tabular-nums; }
@@ -310,6 +322,23 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Ar
 
 <!-- TAB: AUDIENCES -->
 <div class="tab-content" data-tab-content="audiences">
+  <section class="card" id="card-top-segments">
+    <div class="card-head">
+      <h2 class="card-title">🏆 Top 10 segmentos por receita</h2>
+      <div class="top-seg-toggle">
+        <button class="top-seg-btn active" data-mode="volume" onclick="setTopSegmentsMode('volume')">Volume (Receita)</button>
+        <button class="top-seg-btn" data-mode="rpr" onclick="setTopSegmentsMode('rpr')">Eficiência (RPR)</button>
+      </div>
+    </div>
+    <div class="card-desc">Atribuído a partir dos flows que usam o segmento como trigger (campanhas serão adicionadas em v2). Período: <strong id="top-seg-period">L7D</strong>.</div>
+    <div style="overflow-x:auto;margin-top:12px">
+      <table class="top-seg-table">
+        <thead><tr><th>Segmento</th><th class="num">Receita</th><th class="num">RPR</th><th class="num">AOV</th><th class="num">Conversões</th><th class="num">Recipients</th><th class="num">Flows</th></tr></thead>
+        <tbody id="top-seg-tbody"><tr><td colspan="7" class="empty" style="text-align:center">Carregando…</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+
   <section class="card">
     <div class="card-head">
       <h2 class="card-title">👥 Todas as audiências</h2>
@@ -813,6 +842,9 @@ async function loadAllFlowTriggers() {
       if (activeTab === 'journey') {
         try { renderAllSections(); } catch (_) {}
       }
+      if (activeTab === 'audiences') {
+        try { renderTopSegments(); } catch (_) {}
+      }
     }, i * 800);
   }
 }
@@ -826,15 +858,18 @@ window.setJourneyPeriod = async function(days) {
   // Se já temos cache para esse período, renderiza instantâneo
   if (performanceCache[days] && performanceCache[days]._complete) {
     renderAllSections();
+    try { renderTopSegments(); } catch (_) {}
     if (statusEl) statusEl.textContent = '✓ Cache de ' + days + ' dias';
     return;
   }
   // Sem cache — busca
   if (statusEl) statusEl.textContent = '⏳ Buscando dados de ' + days + ' dias…';
   renderAllSections();
+  try { renderTopSegments(); } catch (_) {}
   try {
     await loadPerformance(days);
     renderAllSections();
+    try { renderTopSegments(); } catch (_) {}
     if (statusEl) statusEl.textContent = '✓ Dados de ' + days + ' dias carregados';
   } catch (e) {
     if (statusEl) statusEl.textContent = '⚠️ Erro: ' + escapeHtml(e.message);
@@ -907,7 +942,94 @@ function categorizeSegment(name) {
 }
 const CAT_LABELS = { engagement: "Engagement", customer: "Customer", inactive: "Inactive", exclude: "Exclude", interest: "Interest", geo: "Geo", resend: "Resend", ads: "Ads", welcome: "Welcome", predictive: "Predictive", preorder: "Pre-Order", other: "Outros" };
 
+// ========== TOP 10 SEGMENTOS POR RECEITA (computed client-side) ==========
+let topSegmentsMode = "volume"; // 'volume' (sort by revenue) | 'rpr' (sort by RPR)
+
+window.setTopSegmentsMode = function(mode) {
+  if (!["volume", "rpr"].includes(mode)) return;
+  topSegmentsMode = mode;
+  document.querySelectorAll(".top-seg-btn").forEach(b => b.classList.toggle("active", b.dataset.mode === mode));
+  renderTopSegments();
+};
+
+function computeTopSegments() {
+  if (!appData || !appData.flows) return [];
+  const period = journeyPeriod || 7;
+  const perfData = (performanceCache[period] && performanceCache[period].current) || {};
+  const triggers = appData.flowTriggers || {};
+  const aggBySeg = {};
+
+  for (const flow of appData.flows) {
+    if (flow.status !== "live") continue;
+    const trig = triggers[flow.id];
+    if (!trig || trig.triggerSourceType !== "segment" || !trig.triggerSourceId) continue;
+    const segId = trig.triggerSourceId;
+    const perf = perfData[flow.id];
+    if (!perf) continue;
+    if (!aggBySeg[segId]) {
+      aggBySeg[segId] = {
+        id: segId,
+        name: trig.triggerSourceName || segId,
+        revenue: 0, conversions: 0, recipients: 0, flowCount: 0
+      };
+    }
+    const s = aggBySeg[segId];
+    s.revenue += perf.revenue || 0;
+    s.conversions += perf.conversions || 0;
+    s.recipients += perf.recipients || 0;
+    s.flowCount += 1;
+  }
+
+  // Enriquece com profile_count quando disponível
+  Object.keys(aggBySeg).forEach(segId => {
+    const cnt = (appData.keySegmentCounts || {})[segId];
+    if (cnt != null) aggBySeg[segId].profileCount = cnt;
+  });
+
+  const list = Object.values(aggBySeg).map(s => ({
+    ...s,
+    rpr: s.recipients > 0 ? s.revenue / s.recipients : 0,
+    aov: s.conversions > 0 ? s.revenue / s.conversions : 0
+  }));
+
+  if (topSegmentsMode === "rpr") list.sort((a, b) => b.rpr - a.rpr);
+  else list.sort((a, b) => b.revenue - a.revenue);
+
+  return list.slice(0, 10);
+}
+
+function renderTopSegments() {
+  const tbody = document.getElementById("top-seg-tbody");
+  const periodEl = document.getElementById("top-seg-period");
+  if (!tbody) return;
+  if (periodEl) periodEl.textContent = "L" + (journeyPeriod || 7) + "D";
+
+  const list = computeTopSegments();
+  if (list.length === 0) {
+    const triggersLoaded = appData && appData.flowTriggers && Object.keys(appData.flowTriggers).length > 0;
+    const perfLoaded = performanceCache[journeyPeriod || 7] && performanceCache[journeyPeriod || 7]._complete;
+    let msg;
+    if (!perfLoaded) msg = "Aguardando performance dos flows carregar…";
+    else if (!triggersLoaded) msg = "Aguardando segmentação dos flows carregar…";
+    else msg = "Nenhum flow com trigger de segmento encontrado para este período.";
+    tbody.innerHTML = '<tr><td colspan="7" class="empty" style="text-align:center">' + escapeHtml(msg) + "</td></tr>";
+    return;
+  }
+
+  tbody.innerHTML = list.map((s, idx) => {
+    const rankClass = idx === 0 ? "top1" : (idx <= 2 ? "top2" : "");
+    return '<tr><td><span class="top-seg-rank ' + rankClass + '">' + (idx + 1) + '</span><strong>' + escapeHtml(s.name) + '</strong>' + (s.flowCount > 1 ? '<span style="color:#8a8275;font-size:11px"> · ' + s.flowCount + ' flows</span>' : '') + '</td>' +
+      '<td class="num">' + fmtCurrency(s.revenue) + '</td>' +
+      '<td class="num">' + (s.rpr > 0 ? fmtCurrency(s.rpr) : '—') + '</td>' +
+      '<td class="num">' + (s.aov > 0 ? fmtCurrency(s.aov) : '—') + '</td>' +
+      '<td class="num">' + fmtNum(s.conversions) + '</td>' +
+      '<td class="num">' + fmtNum(s.recipients) + '</td>' +
+      '<td class="num">' + fmtNum(s.flowCount) + '</td></tr>';
+  }).join("");
+}
+
 function renderAudiences() {
+  renderTopSegments(); // top-segmentos no topo da aba
   const segs = (appData.allSegments || []).map(s => ({ ...s, category: categorizeSegment(s.name), featured: !!(appData.featuredSegments || []).find(f => f.id === s.id) }));
   const search = (document.getElementById("aud-search").value || "").toLowerCase();
   const cat = document.getElementById("aud-category-filter").value;
