@@ -61,9 +61,9 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Ar
 .subgroup-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding-bottom: 8px; border-bottom: 1px solid #ece7df; margin-bottom: 4px; }
 .subgroup-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #4a4239; }
 .subgroup-meta { font-size: 11px; color: #8a8275; }
-.flow-row { display: grid; grid-template-columns: 60px minmax(200px, 1.5fr) 110px 95px 95px 80px 80px 60px; gap: 12px; align-items: center; padding: 11px 0; border-bottom: 1px solid #f3efe7; font-size: 12px; }
+.flow-row { display: grid; grid-template-columns: 60px minmax(200px, 1.4fr) 110px 90px 90px 75px 75px 75px 55px; gap: 12px; align-items: center; padding: 11px 0; border-bottom: 1px solid #f3efe7; font-size: 12px; }
 .flow-row:last-child { border-bottom: none; }
-.flow-header-row { display: grid; grid-template-columns: 60px minmax(200px, 1.5fr) 110px 95px 95px 80px 80px 60px; gap: 12px; padding: 6px 0; border-bottom: 1px solid #d9d2c4; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #8a8275; }
+.flow-header-row { display: grid; grid-template-columns: 60px minmax(200px, 1.4fr) 110px 90px 90px 75px 75px 75px 55px; gap: 12px; padding: 6px 0; border-bottom: 1px solid #d9d2c4; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #8a8275; }
 .flow-header-row .num, .flow-row .num { text-align: right; font-variant-numeric: tabular-nums; }
 .flow-name a { color: #1a1a1a; text-decoration: none; font-weight: 500; }
 .flow-name a:hover { color: #d44a8a; text-decoration: underline; }
@@ -691,16 +691,18 @@ function renderFlowHeader() {
     <div>Trigger</div>
     <div>Criado em</div>
     <div>Última atualização</div>
-    <div class="num">Disparos ${lbl}</div>
-    <div class="num">Contatos ${lbl}</div>
+    <div class="num" title="Total emails enviados (Klaviyo delivered)">Disparos ${lbl}</div>
+    <div class="num" title="Pessoas únicas que receberam (Klaviyo recipients)">Contatos ${lbl}</div>
+    <div class="num" title="Pessoas únicas que abriram (Klaviyo opens_unique)">Abertos ${lbl}</div>
     <div></div>
   </div>`;
 }
 
 function renderFlowRow(f) {
   const perf = (performanceCache[journeyPeriod] && performanceCache[journeyPeriod].current) ? performanceCache[journeyPeriod].current[f.id] : null;
-  const disparos = perf ? fmtNum(perf.recipients) : '—';
-  const contatos = perf ? fmtNum(perf.opens) : '—';
+  const disparos = perf ? fmtNum(perf.delivered) : '—';
+  const contatos = perf ? fmtNum(perf.recipients) : '—';
+  const abertos = perf ? fmtNum(perf.opens) : '—';
   return `<div class="flow-row">
     <div>${statusPill(f.status)}</div>
     <div class="flow-name"><a href="https://www.klaviyo.com/flow/${encodeURIComponent(f.id)}/edit" target="_blank" rel="noopener">${escapeHtml(f.name)}</a></div>
@@ -709,6 +711,7 @@ function renderFlowRow(f) {
     <div class="flow-date">${fmtDate(f.updated)}</div>
     <div class="num">${disparos}</div>
     <div class="num">${contatos}</div>
+    <div class="num">${abertos}</div>
     <div class="flow-link"><a href="https://www.klaviyo.com/flow/${encodeURIComponent(f.id)}/edit" target="_blank" rel="noopener">Abrir →</a></div>
   </div>`;
 }
