@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Larroudé · Jornada do perfil — Klaviyo</title>
+<title>Larroudé - Jornada Klaviyo</title>
 <script src="https://cdn.jsdelivr.net/npm/mermaid@11.10.0/dist/mermaid.min.js"></script>
 <style>
 :root { color-scheme: light; }
@@ -61,9 +61,9 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Ar
 .subgroup-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding-bottom: 8px; border-bottom: 1px solid #ece7df; margin-bottom: 4px; }
 .subgroup-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #4a4239; }
 .subgroup-meta { font-size: 11px; color: #8a8275; }
-.flow-row { display: grid; grid-template-columns: 60px minmax(200px, 1.4fr) 110px 90px 90px 75px 75px 75px 55px; gap: 12px; align-items: center; padding: 11px 0; border-bottom: 1px solid #f3efe7; font-size: 12px; }
+.flow-row { display: grid; grid-template-columns: 55px minmax(180px, 1.2fr) minmax(140px, 1fr) 100px 85px 85px 70px 70px 70px 55px; gap: 12px; align-items: center; padding: 11px 0; border-bottom: 1px solid #f3efe7; font-size: 12px; }
 .flow-row:last-child { border-bottom: none; }
-.flow-header-row { display: grid; grid-template-columns: 60px minmax(200px, 1.4fr) 110px 90px 90px 75px 75px 75px 55px; gap: 12px; padding: 6px 0; border-bottom: 1px solid #d9d2c4; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #8a8275; }
+.flow-header-row { display: grid; grid-template-columns: 55px minmax(180px, 1.2fr) minmax(140px, 1fr) 100px 85px 85px 70px 70px 70px 55px; gap: 12px; padding: 6px 0; border-bottom: 1px solid #d9d2c4; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #8a8275; }
 .flow-header-row .num, .flow-row .num { text-align: right; font-variant-numeric: tabular-nums; }
 .flow-name a { color: #1a1a1a; text-decoration: none; font-weight: 500; }
 .flow-name a:hover { color: #d44a8a; text-decoration: underline; }
@@ -158,7 +158,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Ar
 
 <header class="page-header">
   <div>
-    <h1 class="page-title">Larroudé · Jornada do perfil — Klaviyo</h1>
+    <h1 class="page-title">Larroudé - Jornada Klaviyo</h1>
     <div class="account-toggle"><button class="account-btn active" data-account="us" onclick="switchAccount('us')">🇺🇸 US</button><button class="account-btn" data-account="br" onclick="switchAccount('br')">🇧🇷 BR</button><button class="refresh-btn" id="refresh-btn" onclick="forceRefresh()" title="Limpa cache e busca dados frescos do Klaviyo (~30–60s)">🔄 Atualizar agora</button></div>
     <div class="page-subtitle" id="page-subtitle">Carregando…</div>
   </div>
@@ -688,9 +688,10 @@ function renderFlowHeader() {
   return `<div class="flow-header-row">
     <div>Status</div>
     <div>Flow</div>
+    <div title="Lista, segmento ou métrica que dispara o flow">Segmentação</div>
     <div>Trigger</div>
     <div>Criado em</div>
-    <div>Última atualização</div>
+    <div>Atualizado</div>
     <div class="num" title="Total emails enviados (Klaviyo delivered)">Disparos ${lbl}</div>
     <div class="num" title="Pessoas únicas que receberam (Klaviyo recipients)">Contatos ${lbl}</div>
     <div class="num" title="Pessoas únicas que abriram (Klaviyo opens_unique)">Abertos ${lbl}</div>
@@ -703,9 +704,22 @@ function renderFlowRow(f) {
   const disparos = perf ? fmtNum(perf.delivered) : '—';
   const contatos = perf ? fmtNum(perf.recipients) : '—';
   const abertos = perf ? fmtNum(perf.opens) : '—';
+  const trig = (appData && appData.flowTriggers) ? appData.flowTriggers[f.id] : null;
+  let segCell;
+  if (!trig) {
+    segCell = '<span style="color:#b0a99c">carregando…</span>';
+  } else if (trig.error) {
+    segCell = '<span style="color:#c0392b" title="' + escapeHtml(trig.error) + '">erro</span>';
+  } else if (trig.triggerSourceName) {
+    const typeLabel = trig.triggerSourceType === 'list' ? '📋' : (trig.triggerSourceType === 'segment' ? '📋' : (trig.triggerSourceType === 'metric' ? '📊' : (trig.triggerSourceType === 'date_property' ? '🎂' : '')));
+    segCell = '<span title="' + escapeHtml(trig.triggerSourceType || '') + ': ' + escapeHtml(trig.triggerSourceName) + '">' + typeLabel + ' ' + escapeHtml(trig.triggerSourceName) + '</span>';
+  } else {
+    segCell = '<span style="color:#8a8275">—</span>';
+  }
   return `<div class="flow-row">
     <div>${statusPill(f.status)}</div>
     <div class="flow-name"><a href="https://www.klaviyo.com/flow/${encodeURIComponent(f.id)}/edit" target="_blank" rel="noopener">${escapeHtml(f.name)}</a></div>
+    <div class="flow-segment" style="font-size:11px;color:#4a4239">${segCell}</div>
     <div class="flow-trigger">${escapeHtml(f.triggerType || "")}</div>
     <div class="flow-date">${fmtDate(f.created)}</div>
     <div class="flow-date">${fmtDate(f.updated)}</div>
@@ -714,6 +728,36 @@ function renderFlowRow(f) {
     <div class="num">${abertos}</div>
     <div class="flow-link"><a href="https://www.klaviyo.com/flow/${encodeURIComponent(f.id)}/edit" target="_blank" rel="noopener">Abrir →</a></div>
   </div>`;
+}
+
+async function fetchOneFlowTrigger(id) {
+  try {
+    const r = await fetch(withAccount("/api/flow-trigger?id=" + encodeURIComponent(id)));
+    if (!r.ok) return { error: "HTTP " + r.status };
+    return await r.json();
+  } catch (e) { return { error: e.message }; }
+}
+
+async function loadAllFlowTriggers() {
+  if (!appData || !appData.flows) return;
+  appData.flowTriggers = appData.flowTriggers || {};
+  const live = appData.flows.filter(f => f.status === "live");
+  // Stagger 800ms — 36 flows × 0.8s ≈ 30s para popular tudo (cache 7d evita repetir)
+  for (let i = 0; i < live.length; i++) {
+    const f = live[i];
+    if (appData.flowTriggers[f.id]) continue; // já carregado
+    setTimeout(async () => {
+      const t = await fetchOneFlowTrigger(f.id);
+      if (!appData) return;
+      appData.flowTriggers = appData.flowTriggers || {};
+      appData.flowTriggers[f.id] = t;
+      // Re-render incremental — só se aba journey ativa
+      const activeTab = document.querySelector('.tab.active')?.dataset?.tab;
+      if (activeTab === 'journey') {
+        try { renderAllSections(); } catch (_) {}
+      }
+    }, i * 800);
+  }
 }
 
 window.setJourneyPeriod = async function(days) {
@@ -1117,6 +1161,8 @@ async function init() {
     loadKeySegmentCounts();
     // Pré-carrega performance em background pra popular Disparos/Contatos nas seções da Jornada
     loadPerformance(currentPeriod).then(() => { try { renderAllSections(); } catch (_) {} }).catch(() => {});
+    // Pré-carrega flow triggers (segmentação) em background — staggered pra não throttle Klaviyo
+    loadAllFlowTriggers();
   } catch (e) {
     document.getElementById("error-banner").innerHTML = '<div class="error-banner">⚠️ Erro ao carregar dados: ' + escapeHtml(e.message) + '<br><small>Verifique se KLAVIYO_API_KEY está configurada nas env vars do Vercel.</small></div>';
   }
