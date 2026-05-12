@@ -1,11 +1,8 @@
-// Vercel Serverless Function (Node runtime) — atribuição Klaviyo via Shopify
-// Lê do BigQuery `larroude-data-platform.shopify_{us,br}.orders` (já ingerido via Airbyte).
+// Vercel Serverless Function (Node, CommonJS) — atribuição Klaviyo via Shopify
+// Lê do BigQuery `larroude-data-platform.shopify_{us,br}.orders` (Airbyte ingested).
 // Filtra `landing_site` com `utm_source=klaviyo` (last-click UTM canonical).
-// 1 query agrega o mês inteiro — sub-segundo no BigQuery vs 25s+ Shopify REST.
 
-import { BigQuery } from "@google-cloud/bigquery";
-
-export const config = { maxDuration: 15 };
+const { BigQuery } = require("@google-cloud/bigquery");
 
 let bqClient = null;
 function getBQ() {
@@ -27,11 +24,11 @@ function getBQ() {
   return bqClient;
 }
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   res.setHeader("content-type", "application/json");
   try {
-    const account = (req.query.account || "us").toLowerCase();
-    const monthStr = req.query.month || "";
+    const account = ((req.query && req.query.account) || "us").toLowerCase();
+    const monthStr = (req.query && req.query.month) || "";
 
     if (!["us", "br"].includes(account)) {
       res.status(400).end(JSON.stringify({ error: "account inválida (use us|br)" }));
@@ -49,21 +46,21 @@ export default async function handler(req, res) {
       month = now.getUTCMonth() + 1;
     }
 
-    const startDate = `${year}-${String(month).padStart(2, "0")}-01`;
+    const pad = n => String(n).padStart(2, "0");
+    const startDate = `${year}-${pad(month)}-01`;
     const nextMonth = month === 12 ? { y: year + 1, m: 1 } : { y: year, m: month + 1 };
-    const endDate = `${nextMonth.y}-${String(nextMonth.m).padStart(2, "0")}-01`;
+    const endDate = `${nextMonth.y}-${pad(nextMonth.m)}-01`;
 
     const table = `larroude-data-platform.shopify_${account}.orders`;
-    const sql = `
-      SELECT
-        COUNT(*) AS total_orders,
-        IFNULL(ROUND(SUM(total_price), 2), 0) AS total_revenue,
-        COUNTIF(REGEXP_CONTAINS(landing_site, r'(?i)[?&]utm_source=klaviyo')) AS klaviyo_orders,
-        IFNULL(ROUND(SUM(IF(REGEXP_CONTAINS(landing_site, r'(?i)[?&]utm_source=klaviyo'), total_price, 0)), 2), 0) AS klaviyo_revenue,
-        ANY_VALUE(currency) AS currency
-      FROM \`${table}\`
-      WHERE created_at >= TIMESTAMP(@start_date) AND created_at < TIMESTAMP(@end_date)
-    `;
+    const sql =
+      "SELECT" +
+      "  COUNT(*) AS total_orders," +
+      "  IFNULL(ROUND(SUM(total_price), 2), 0) AS total_revenue," +
+      "  COUNTIF(REGEXP_CONTAINS(landing_site, r'(?i)[?&]utm_source=klaviyo')) AS klaviyo_orders," +
+      "  IFNULL(ROUND(SUM(IF(REGEXP_CONTAINS(landing_site, r'(?i)[?&]utm_source=klaviyo'), total_price, 0)), 2), 0) AS klaviyo_revenue," +
+      "  ANY_VALUE(currency) AS currency " +
+      "FROM `" + table + "` " +
+      "WHERE created_at >= TIMESTAMP(@start_date) AND created_at < TIMESTAMP(@end_date)";
 
     const bq = getBQ();
     const [rows] = await bq.query({
@@ -81,7 +78,7 @@ export default async function handler(req, res) {
     res.status(200).end(JSON.stringify({
       account,
       year, month,
-      monthKey: `${year}-${String(month).padStart(2, "0")}`,
+      monthKey: `${year}-${pad(month)}`,
       totalOrders: Number(r.total_orders) || 0,
       totalRevenue,
       klaviyoOrders: Number(r.klaviyo_orders) || 0,
@@ -96,7 +93,8 @@ export default async function handler(req, res) {
     res.status(200).end(JSON.stringify({
       error: e.message || String(e),
       code: e.code,
+      stack: (e.stack || "").split("\n").slice(0, 3),
       fetchedAt: new Date().toISOString()
     }));
   }
-}
+};
