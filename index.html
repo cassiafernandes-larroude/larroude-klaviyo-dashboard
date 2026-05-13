@@ -34,6 +34,19 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Ar
 .kpi-month-cell .sub { font-size: 10px; color: #8a8275; margin-top: 1px; }
 .kpi-month-cell.attribuida .val { color: #d44a8a; }
 @media (max-width: 720px) { .kpi-grid-3 { grid-template-columns: 1fr; } }
+.ltv-windows-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.ltv-card { background: #fff; border-radius: 8px; padding: 14px; border: 1px solid #ece7df; }
+.ltv-card-forecast { background: linear-gradient(135deg, #fce5ef 0%, #fff 100%); border-color: #f3c8df; }
+.ltv-window-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #6b6256; margin-bottom: 10px; }
+.ltv-card-row { display: flex; justify-content: space-between; align-items: baseline; padding: 6px 0; border-bottom: 1px solid #f3efe7; }
+.ltv-card-row:last-of-type { border-bottom: none; }
+.ltv-card-row-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; color: #8a8275; }
+.ltv-card-row-value { font-size: 15px; font-weight: 700; color: #1a1a1a; font-variant-numeric: tabular-nums; }
+.ltv-card-row.primary .ltv-card-row-value { color: #d44a8a; font-size: 18px; }
+.ltv-loading { font-size: 11px; color: #b0a99c; padding: 12px 0; }
+.ltv-card-meta { font-size: 10px; color: #8a8275; margin-top: 8px; padding-top: 8px; border-top: 1px solid #f3efe7; }
+@media (max-width: 1000px) { .ltv-windows-grid { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 600px) { .ltv-windows-grid { grid-template-columns: 1fr; } }
 .top-seg-toggle { display: inline-flex; gap: 0; background: #f0ece5; border-radius: 6px; padding: 3px; }
 .top-seg-btn { padding: 6px 14px; font-size: 12px; font-weight: 600; color: #6a5e4f; background: none; border: none; border-radius: 4px; cursor: pointer; transition: all 0.15s; }
 .top-seg-btn.active { background: #d44a8a; color: white; }
@@ -208,12 +221,12 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Ar
   </div>
 
   <div class="kpi-section">
-    <div class="kpi-section-label">📈 LTV · Janelas de revenue / unique buyers (cohort)</div>
-    <div class="kpi-grid" id="kpis-ltv">
-      <div class="kpi"><div class="kpi-label">LTV últimos 3 meses</div><div class="kpi-value skeleton">—</div><div class="kpi-sub" id="ltv-3m-sub">—</div></div>
-      <div class="kpi"><div class="kpi-label">LTV últimos 6 meses</div><div class="kpi-value skeleton">—</div><div class="kpi-sub" id="ltv-6m-sub">—</div></div>
-      <div class="kpi"><div class="kpi-label">LTV últimos 12 meses</div><div class="kpi-value skeleton">—</div><div class="kpi-sub" id="ltv-12m-sub">—</div></div>
-      <div class="kpi"><div class="kpi-label">Forecast LTV próximos 3M</div><div class="kpi-value skeleton">—</div><div class="kpi-sub" id="ltv-fc-sub">trailing 12M ÷ 12 × 3</div></div>
+    <div class="kpi-section-label">📈 LTV · Metodologia oficial Larroudé (AOV × Frequency × Lifetime)</div>
+    <div class="ltv-windows-grid" id="kpis-ltv-windows">
+      <div class="ltv-card" data-window="90"><div class="ltv-window-label">3 meses (90d)</div><div class="ltv-loading">Carregando…</div></div>
+      <div class="ltv-card" data-window="180"><div class="ltv-window-label">6 meses (180d)</div><div class="ltv-loading">Carregando…</div></div>
+      <div class="ltv-card" data-window="365"><div class="ltv-window-label">12 meses (365d)</div><div class="ltv-loading">Carregando…</div></div>
+      <div class="ltv-card ltv-card-forecast" data-window="forecast"><div class="ltv-window-label">Forecast 3M</div><div class="ltv-loading">Calculando…</div></div>
     </div>
   </div>
 
@@ -700,36 +713,66 @@ async function loadMonthlyRevenue() {
 }
 
 function renderLtvKpis() {
-  const lw = appData.ltvWindows;
-  if (!lw) return;
-  const cells = document.querySelectorAll("#kpis-ltv .kpi-value");
-  const setKpi = (idx, win, subId) => {
-    if (!win) {
-      cells[idx].textContent = "—";
-      cells[idx].classList.remove("skeleton");
-      return;
-    }
-    cells[idx].textContent = fmtCurrency(win.ltv || 0);
-    cells[idx].classList.remove("skeleton");
-    const sub = document.getElementById(subId);
-    if (sub) {
-      const rev = fmtCurrency(win.revenue || 0);
-      const buyers = fmtNum(win.uniqueBuyerMonths || 0);
-      sub.textContent = rev + " ÷ " + buyers + " unique buyer-months";
-    }
-  };
-  setKpi(0, lw.l3m, "ltv-3m-sub");
-  setKpi(1, lw.l6m, "ltv-6m-sub");
-  setKpi(2, lw.l12m, "ltv-12m-sub");
-  if (lw.forecast3m) {
-    cells[3].textContent = fmtCurrency(lw.forecast3m.ltv || 0);
-    cells[3].classList.remove("skeleton");
-    const sub = document.getElementById("ltv-fc-sub");
-    if (sub) sub.textContent = "≈ " + fmtCurrency(lw.forecast3m.revenue) + " ÷ " + fmtNum(lw.forecast3m.uniqueBuyerMonths) + " · trailing 12M ÷ 12 × 3";
-  } else {
-    cells[3].textContent = "—";
-    cells[3].classList.remove("skeleton");
+  // Substituído por loadLtvWindows — chamado em init()
+}
+
+// Cache local dos resultados LTV por janela
+const ltvCache = {};
+
+function renderLtvCard(days, data) {
+  const card = document.querySelector('[data-window="' + days + '"]');
+  if (!card) return;
+  if (!data || data.error) {
+    card.innerHTML = '<div class="ltv-window-label">' + (days === 90 ? '3 meses (90d)' : (days === 180 ? '6 meses (180d)' : '12 meses (365d)')) + '</div><div class="ltv-loading" style="color:#c0392b">⚠️ ' + escapeHtml((data && data.error) || 'erro').slice(0, 80) + '</div>';
+    return;
   }
+  const lbl = days === 90 ? '3 meses (90d)' : (days === 180 ? '6 meses (180d)' : '12 meses (365d)');
+  card.innerHTML =
+    '<div class="ltv-window-label">' + lbl + '</div>' +
+    '<div class="ltv-card-row primary"><span class="ltv-card-row-label">LTV Preditivo</span><span class="ltv-card-row-value">' + fmtCurrency(data.ltvPreditivo) + '</span></div>' +
+    '<div class="ltv-card-row"><span class="ltv-card-row-label">LTV Histórico</span><span class="ltv-card-row-value">' + fmtCurrency(data.ltvHistorico) + '</span></div>' +
+    '<div class="ltv-card-row"><span class="ltv-card-row-label">Returning rate</span><span class="ltv-card-row-value">' + (data.returningRatePct || 0).toFixed(1) + '%</span></div>' +
+    '<div class="ltv-card-meta">' + fmtNum(data.predictiveCustomers) + ' customers · ' + fmtNum(data.predictiveOrders) + ' orders · ' + fmtCurrency(data.predictiveNetSales) + ' net sales</div>';
+}
+
+function renderForecastCard() {
+  const card = document.querySelector('[data-window="forecast"]');
+  if (!card) return;
+  const data12m = ltvCache[365];
+  if (!data12m || data12m.error || !data12m.ltvPreditivo) {
+    card.innerHTML = '<div class="ltv-window-label">Forecast 3M</div><div class="ltv-loading">Aguardando LTV 12M…</div>';
+    return;
+  }
+  const forecast = data12m.ltvPreditivo * 0.25;
+  card.innerHTML =
+    '<div class="ltv-window-label">Forecast 3M</div>' +
+    '<div class="ltv-card-row primary"><span class="ltv-card-row-label">LTV Preditivo × 0.25</span><span class="ltv-card-row-value">' + fmtCurrency(forecast) + '</span></div>' +
+    '<div class="ltv-card-meta">Base: ' + fmtCurrency(data12m.ltvPreditivo) + ' (12M rolling) × ¼ trimestre · projeção linear</div>';
+}
+
+async function loadLtvWindows() {
+  const windows = [90, 180, 365];
+  // Render placeholders
+  windows.forEach(d => {
+    const card = document.querySelector('[data-window="' + d + '"]');
+    if (card) {
+      const lbl = d === 90 ? '3 meses (90d)' : (d === 180 ? '6 meses (180d)' : '12 meses (365d)');
+      card.innerHTML = '<div class="ltv-window-label">' + lbl + '</div><div class="ltv-loading">Carregando BigQuery…</div>';
+    }
+  });
+  await Promise.all(windows.map(async d => {
+    try {
+      const r = await fetch(withAccount('/api/ltv-windows?days=' + d));
+      if (!r.ok) { ltvCache[d] = { error: 'HTTP ' + r.status }; renderLtvCard(d, ltvCache[d]); return; }
+      const j = await r.json();
+      ltvCache[d] = j;
+      renderLtvCard(d, j);
+    } catch (e) {
+      ltvCache[d] = { error: e.message };
+      renderLtvCard(d, ltvCache[d]);
+    }
+  }));
+  renderForecastCard();
 }
 
 function renderBaseKpis() {
@@ -1366,6 +1409,7 @@ async function init() {
     renderBaseKpis();
     renderFlowKpis();
     loadMonthlyRevenue(); // Shopify attribution — 3 cards mensais
+    loadLtvWindows(); // LTV preditivo + histórico (metodologia oficial Larroudé)
     await renderDiagram(appData.keySegmentCounts);
     renderAllSections();
     // Disparar segment counts em paralelo (não bloqueia render inicial)
