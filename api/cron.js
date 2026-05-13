@@ -61,6 +61,7 @@ export default async function handler(req) {
       ...featuredIds.map(id => baseUrl + "/api/segment-count?id=" + id + "&account=" + acct),
       ...segChunk.map(id => baseUrl + "/api/segment-count?id=" + id + "&account=" + acct),
       ...liveFlowIds.map(id => baseUrl + "/api/flow-trigger?id=" + id + "&account=" + acct),
+      ...liveFlowIds.map(id => baseUrl + "/api/flow-messages?id=" + id + "&account=" + acct),
       ...shopifyMonths.map(m => baseUrl + "/api/shopify-attribution?account=" + acct + "&month=" + m)
     ];
     targets.forEach(url => { fetch(url).catch(() => null); });

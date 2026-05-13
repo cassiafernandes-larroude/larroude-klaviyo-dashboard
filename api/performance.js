@@ -98,10 +98,11 @@ async function fetchAllFlowsReport(apiKey, metricId, timeframe, flowIds) {
   const results = j && j.data && j.data.attributes && j.data.attributes.results || [];
   results.forEach(r => {
     const id = r.groupings && r.groupings.flow_id;
+    const msgId = r.groupings && r.groupings.flow_message_id;
     if (!id) return;
     const s = r.statistics || {};
-    map[id] = {
-      flow_id: id,
+    const msgStats = {
+      flow_message_id: msgId,
       recipients: s.recipients || 0,
       delivered: s.delivered || 0,
       opens: s.opens_unique || 0,
@@ -112,7 +113,37 @@ async function fetchAllFlowsReport(apiKey, metricId, timeframe, flowIds) {
       clickRate: s.click_rate || 0,
       conversionRate: s.conversion_rate || 0
     };
+
+    if (!map[id]) {
+      // Inicializa flow com totais zerados
+      map[id] = {
+        flow_id: id,
+        recipients: 0, delivered: 0, opens: 0, clicks: 0, conversions: 0, revenue: 0,
+        openRate: 0, clickRate: 0, conversionRate: 0,
+        messages: {}
+      };
+    }
+
+    // Soma totais do flow (recipients/delivered/opens são por step, somam pra dar TOTAL de mensagens)
+    map[id].recipients += msgStats.recipients;
+    map[id].delivered += msgStats.delivered;
+    map[id].opens += msgStats.opens;
+    map[id].clicks += msgStats.clicks;
+    map[id].conversions += msgStats.conversions;
+    map[id].revenue += msgStats.revenue;
+
+    // Guarda dados da mensagem
+    if (msgId) map[id].messages[msgId] = msgStats;
   });
+
+  // Calcula rates agregadas (sobre totais)
+  Object.keys(map).forEach(id => {
+    const m = map[id];
+    m.openRate = m.delivered > 0 ? m.opens / m.delivered : 0;
+    m.clickRate = m.delivered > 0 ? m.clicks / m.delivered : 0;
+    m.conversionRate = m.delivered > 0 ? m.conversions / m.delivered : 0;
+  });
+
   return map;
 }
 
