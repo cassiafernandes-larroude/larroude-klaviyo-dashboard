@@ -828,35 +828,85 @@ function renderFlowHeader() {
   </div>`;
 }
 
+function segCellHtml(f) {
+  const trig = (appData && appData.flowTriggers) ? appData.flowTriggers[f.id] : null;
+  if (!trig) return '<span style="color:#b0a99c">carregando…</span>';
+  if (trig.error) return '<span style="color:#c0392b" title="' + escapeHtml(trig.error) + '">erro</span>';
+  if (trig.triggerSourceName) {
+    const lbl = trig.triggerSourceType === 'metric' ? '📊' : (trig.triggerSourceType === 'date_property' ? '🎂' : '📋');
+    return '<span title="' + escapeHtml(trig.triggerSourceType || '') + ': ' + escapeHtml(trig.triggerSourceName) + '">' + lbl + ' ' + escapeHtml(trig.triggerSourceName) + '</span>';
+  }
+  return '<span style="color:#8a8275">—</span>';
+}
+
+// Renderiza N+1 rows por flow: 1 row "header" do flow com totais + N rows de mensagens
 function renderFlowRow(f) {
   const perf = (performanceCache[journeyPeriod] && performanceCache[journeyPeriod].current) ? performanceCache[journeyPeriod].current[f.id] : null;
-  const disparos = perf ? fmtNum(perf.delivered) : '—';
-  const contatos = perf ? fmtNum(perf.recipients) : '—';
-  const abertos = perf ? fmtNum(perf.opens) : '—';
-  const trig = (appData && appData.flowTriggers) ? appData.flowTriggers[f.id] : null;
-  let segCell;
-  if (!trig) {
-    segCell = '<span style="color:#b0a99c">carregando…</span>';
-  } else if (trig.error) {
-    segCell = '<span style="color:#c0392b" title="' + escapeHtml(trig.error) + '">erro</span>';
-  } else if (trig.triggerSourceName) {
-    const typeLabel = trig.triggerSourceType === 'list' ? '📋' : (trig.triggerSourceType === 'segment' ? '📋' : (trig.triggerSourceType === 'metric' ? '📊' : (trig.triggerSourceType === 'date_property' ? '🎂' : '')));
-    segCell = '<span title="' + escapeHtml(trig.triggerSourceType || '') + ': ' + escapeHtml(trig.triggerSourceName) + '">' + typeLabel + ' ' + escapeHtml(trig.triggerSourceName) + '</span>';
-  } else {
-    segCell = '<span style="color:#8a8275">—</span>';
-  }
-  return `<div class="flow-row">
+  const messages = perf && perf.messages ? perf.messages : {};
+  const msgIds = Object.keys(messages);
+  const msgNames = (appData && appData.flowMessageNames && appData.flowMessageNames[f.id]) || {};
+  const trigCell = segCellHtml(f);
+
+  // Header do flow (totais)
+  let html = `<div class="flow-row flow-row-parent" data-flow="${f.id}">
     <div>${statusPill(f.status)}</div>
-    <div class="flow-name"><a href="https://www.klaviyo.com/flow/${encodeURIComponent(f.id)}/edit" target="_blank" rel="noopener">${escapeHtml(f.name)}</a></div>
-    <div class="flow-segment" style="font-size:11px;color:#4a4239">${segCell}</div>
+    <div class="flow-name"><a href="https://www.klaviyo.com/flow/${encodeURIComponent(f.id)}/edit" target="_blank" rel="noopener"><strong>${escapeHtml(f.name)}</strong></a>${msgIds.length > 0 ? ' <span style="font-size:10px;color:#8a8275">· ' + msgIds.length + ' steps</span>' : ''}</div>
+    <div class="flow-segment" style="font-size:11px;color:#4a4239">${trigCell}</div>
     <div class="flow-trigger">${escapeHtml(f.triggerType || "")}</div>
     <div class="flow-date">${fmtDate(f.created)}</div>
     <div class="flow-date">${fmtDate(f.updated)}</div>
-    <div class="num">${disparos}</div>
-    <div class="num">${contatos}</div>
-    <div class="num">${abertos}</div>
+    <div class="num"><strong>${perf ? fmtNum(perf.delivered) : '—'}</strong></div>
+    <div class="num"><strong>${perf ? fmtNum(perf.recipients) : '—'}</strong></div>
+    <div class="num"><strong>${perf ? fmtNum(perf.opens) : '—'}</strong></div>
     <div class="flow-link"><a href="https://www.klaviyo.com/flow/${encodeURIComponent(f.id)}/edit" target="_blank" rel="noopener">Abrir →</a></div>
   </div>`;
+
+  // Rows por mensagem (steps), ordenado por recipients DESC (entry step primeiro)
+  if (msgIds.length > 0) {
+    const sortedMsgs = msgIds.slice().sort((a, b) => (messages[b].recipients || 0) - (messages[a].recipients || 0));
+    sortedMsgs.forEach((msgId, idx) => {
+      const m = messages[msgId];
+      const msgInfo = msgNames[msgId] || {};
+      const stepLabel = msgInfo.name || msgInfo.subject_line || ('Step ' + (idx + 1));
+      html += `<div class="flow-row flow-row-step">
+        <div></div>
+        <div class="flow-name" style="padding-left:20px;font-size:11px;color:#6b6256">↳ ${escapeHtml(stepLabel)}${msgInfo.subject_line && msgInfo.name ? '<div style="font-size:10px;color:#8a8275">' + escapeHtml(msgInfo.subject_line) + '</div>' : ''}</div>
+        <div></div>
+        <div></div>
+        <div></div>
+        <div></div>
+        <div class="num" style="font-size:11px;color:#6b6256">${fmtNum(m.delivered)}</div>
+        <div class="num" style="font-size:11px;color:#6b6256">${fmtNum(m.recipients)}</div>
+        <div class="num" style="font-size:11px;color:#6b6256">${fmtNum(m.opens)}</div>
+        <div class="flow-link"><a href="https://www.klaviyo.com/flow/${encodeURIComponent(f.id)}/edit" target="_blank" rel="noopener" style="font-size:10px">Step</a></div>
+      </div>`;
+    });
+  }
+  return html;
+}
+
+async function loadFlowMessages(flowId) {
+  if (!appData) return;
+  appData.flowMessageNames = appData.flowMessageNames || {};
+  if (appData.flowMessageNames[flowId]) return; // já cached
+  try {
+    const r = await fetch(withAccount('/api/flow-messages?id=' + encodeURIComponent(flowId)));
+    if (!r.ok) return;
+    const j = await r.json();
+    if (j.error || !j.messages) return;
+    const byId = {};
+    j.messages.forEach(m => { byId[m.id] = m; });
+    appData.flowMessageNames[flowId] = byId;
+    // Re-render se aba journey ativa
+    const activeTab = document.querySelector('.tab.active')?.dataset?.tab;
+    if (activeTab === 'journey') { try { renderAllSections(); } catch (_) {} }
+  } catch (_) {}
+}
+
+function loadAllFlowMessages() {
+  if (!appData || !appData.flows) return;
+  const live = appData.flows.filter(f => f.status === "live");
+  live.forEach((f, i) => setTimeout(() => loadFlowMessages(f.id), i * 600));
 }
 
 async function fetchOneFlowTrigger(id) {
@@ -1418,6 +1468,8 @@ async function init() {
     loadPerformance(currentPeriod).then(() => { try { renderAllSections(); } catch (_) {} }).catch(() => {});
     // Pré-carrega flow triggers (segmentação) em background — staggered pra não throttle Klaviyo
     loadAllFlowTriggers();
+    // Pré-carrega flow messages (nomes dos steps) em background
+    loadAllFlowMessages();
   } catch (e) {
     document.getElementById("error-banner").innerHTML = '<div class="error-banner">⚠️ Erro ao carregar dados: ' + escapeHtml(e.message) + '<br><small>Verifique se KLAVIYO_API_KEY está configurada nas env vars do Vercel.</small></div>';
   }
