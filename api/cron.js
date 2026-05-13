@@ -51,6 +51,13 @@ export default async function handler(req) {
 
     const targets = [
       perfTarget,
+      // LTV windows (BigQuery) — 3 janelas
+      baseUrl + "/api/ltv-windows?days=90&account=" + acct,
+      baseUrl + "/api/ltv-windows?days=180&account=" + acct,
+      baseUrl + "/api/ltv-windows?days=365&account=" + acct,
+      // Campaign revenue por audiência (top segmentos v2) — 7/28d
+      baseUrl + "/api/campaign-revenue?days=7&account=" + acct,
+      baseUrl + "/api/campaign-revenue?days=28&account=" + acct,
       ...featuredIds.map(id => baseUrl + "/api/segment-count?id=" + id + "&account=" + acct),
       ...segChunk.map(id => baseUrl + "/api/segment-count?id=" + id + "&account=" + acct),
       ...liveFlowIds.map(id => baseUrl + "/api/flow-trigger?id=" + id + "&account=" + acct),
